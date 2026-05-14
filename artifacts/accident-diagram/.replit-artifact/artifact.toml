@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Accident Reconstruction Diagram Tool"
+version = "1.0.0"
+id = "artifacts/accident-diagram"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25752
+
+[services.development]
+run = "pnpm --filter @workspace/accident-diagram run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/accident-diagram", "run", "build" ]
+publicDir = "artifacts/accident-diagram/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25752"
+BASE_PATH = "/"
