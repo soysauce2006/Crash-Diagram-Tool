@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Stage, Layer, Rect, Line, Transformer } from 'react-konva';
+import { useState, useRef, useEffect, useCallback, cloneElement } from 'react';
+import { Stage, Layer, Rect, Line, Transformer, Image as KonvaImage } from 'react-konva';
 import type Konva from 'konva';
 import { KonvaEventObject } from 'konva/lib/Node';
-import { Shield, Undo2, Redo2, ZoomIn, ZoomOut, Grid3X3, Trash2, FileDown, ImageDown, ChevronDown, ChevronRight } from 'lucide-react';
+import { Shield, Undo2, Redo2, ZoomIn, ZoomOut, Grid3X3, Trash2, FileDown, ImageDown, ChevronDown, ChevronRight, Map, X } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { CanvasElement, CaseInfo, ELEMENT_DEFAULTS, PALETTE_CATEGORIES } from './lib/elements';
 import { renderElement } from './lib/renderElement';
+import { MapBackgroundModal } from './components/MapBackgroundModal';
 
 const STAGE_W = 1100;
 const STAGE_H = 800;
@@ -57,9 +58,22 @@ export default function App() {
     weather: 'Clear', roadCondition: 'Dry', notes: '',
   });
 
+  const [mapDataUrl, setMapDataUrl] = useState<string | null>(null);
+  const [mapImage, setMapImage] = useState<HTMLImageElement | null>(null);
+  const [mapOpacity, setMapOpacity] = useState(0.55);
+  const [showMapModal, setShowMapModal] = useState(false);
+
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Load map data URL into a DOM Image for Konva
+  useEffect(() => {
+    if (!mapDataUrl) { setMapImage(null); return; }
+    const img = new window.Image();
+    img.onload = () => setMapImage(img);
+    img.src = mapDataUrl;
+  }, [mapDataUrl]);
 
   // Sync transformer to selected node
   useEffect(() => {
@@ -312,6 +326,21 @@ export default function App() {
         <button className="toolbar-btn danger" onClick={clearCanvas} title="Clear canvas" data-testid="btn-clear">
           <Trash2 size={13} /> Clear
         </button>
+        <div className="w-px h-6 mx-1" style={{ background: 'hsl(215,25%,22%)' }} />
+        <button
+          className="toolbar-btn"
+          onClick={() => setShowMapModal(true)}
+          title="Set map background from address"
+          data-testid="btn-map-background"
+          style={mapDataUrl ? { color: 'hsl(142,76%,55%)', borderColor: 'hsl(142,76%,36%)' } : {}}
+        >
+          <Map size={13} /> Map BG
+        </button>
+        {mapDataUrl && (
+          <button className="toolbar-btn" onClick={() => setMapDataUrl(null)} title="Remove map background" data-testid="btn-remove-map" style={{ color: '#ef4444', padding: '5px 7px' }}>
+            <X size={13} />
+          </button>
+        )}
         <div className="flex-1" />
         <button className="toolbar-btn" onClick={exportJpeg} data-testid="btn-export-jpeg">
           <ImageDown size={13} /> Export JPEG
@@ -398,19 +427,24 @@ export default function App() {
                 shadowOffsetX={2}
                 shadowOffsetY={2}
               />
+              {/* Map background image */}
+              {mapImage && (
+                <KonvaImage image={mapImage} x={0} y={0} width={STAGE_W} height={STAGE_H} opacity={mapOpacity} />
+              )}
               {/* Grid */}
               {showGrid && <GridLines w={STAGE_W} h={STAGE_H} />}
               {/* Subtle border */}
               <Rect x={0} y={0} width={STAGE_W} height={STAGE_H} fill="transparent" stroke="#94a3b8" strokeWidth={1} />
               {/* Elements */}
-              {elements.map(el =>
-                renderElement({
+              {elements.map(el => {
+                const node = renderElement({
                   el,
                   isSelected: el.id === selectedId,
                   onSelect: () => setSelectedId(el.id),
                   onChange: (changes) => updateElement(el.id, changes),
-                })
-              )}
+                });
+                return node ? cloneElement(node, { key: el.id }) : null;
+              })}
               {/* Transformer */}
               <Transformer
                 ref={transformerRef}
@@ -433,6 +467,30 @@ export default function App() {
         {/* RIGHT PANEL */}
         <aside style={{ width: 280, background: 'hsl(215,28%,9%)', borderLeft: '1px solid hsl(215,25%,18%)' }}
           className="flex flex-col overflow-y-auto flex-shrink-0">
+
+          {/* Map Background Controls */}
+          {mapDataUrl && (
+            <div style={{ borderBottom: '1px solid hsl(215,25%,16%)' }}>
+              <div className="px-3 py-2" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'hsl(142,76%,45%)', borderBottom: '1px solid hsl(215,25%,15%)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Map size={11} /> Map Background
+              </div>
+              <div className="p-3 flex flex-col gap-2">
+                <label className="prop-label">Opacity ({Math.round(mapOpacity * 100)}%)</label>
+                <input type="range" min={0.1} max={1} step={0.05} value={mapOpacity}
+                  onChange={e => setMapOpacity(Number(e.target.value))}
+                  style={{ width: '100%', accentColor: 'hsl(142,76%,36%)' }}
+                  data-testid="map-opacity-slider" />
+                <div className="flex gap-2">
+                  <button className="toolbar-btn flex-1" style={{ fontSize: 11 }} onClick={() => setShowMapModal(true)} data-testid="btn-change-map">
+                    Change Location
+                  </button>
+                  <button className="toolbar-btn danger flex-1" style={{ fontSize: 11 }} onClick={() => setMapDataUrl(null)} data-testid="btn-remove-map-panel">
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Properties Panel */}
           <div style={{ borderBottom: '1px solid hsl(215,25%,16%)' }}>
@@ -599,6 +657,15 @@ export default function App() {
           </div>
         </aside>
       </div>
+
+      {showMapModal && (
+        <MapBackgroundModal
+          onClose={() => setShowMapModal(false)}
+          onApply={(dataUrl) => { setMapDataUrl(dataUrl); setShowMapModal(false); }}
+          canvasWidth={STAGE_W}
+          canvasHeight={STAGE_H}
+        />
+      )}
     </div>
   );
 }

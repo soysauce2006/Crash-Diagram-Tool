@@ -13,7 +13,6 @@ interface RenderProps {
 
 function makeGroupProps(el: CanvasElement, onSelect: () => void, onChange: (n: Partial<CanvasElement>) => void) {
   return {
-    key: el.id,
     id: el.id,
     x: el.x,
     y: el.y,
