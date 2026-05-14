@@ -13,6 +13,7 @@ interface RenderProps {
 
 function makeGroupProps(el: CanvasElement, onSelect: () => void, onChange: (n: Partial<CanvasElement>) => void) {
   return {
+    key: el.id,
     id: el.id,
     x: el.x,
     y: el.y,
@@ -112,16 +113,28 @@ export function renderElement({ el, onSelect, onChange }: RenderProps) {
         </Group>
       );
 
-    case 'straight-road':
+    case 'straight-road': {
+      const curve = el.curvature ?? 0;
+      if (Math.abs(curve) < 0.01) {
+        return (
+          <Group {...gp}>
+            <Rect width={w} height={h} fill="#475569" />
+            <Line points={[0, h / 2, w, h / 2]} stroke="#ffffff" strokeWidth={2} dash={[20, 15]} opacity={0.7} />
+            <Line points={[0, 0, w, 0]} stroke="#94a3b8" strokeWidth={1} />
+            <Line points={[0, h, w, h]} stroke="#94a3b8" strokeWidth={1} />
+            {labelEl}
+          </Group>
+        );
+      }
+      const midY = h / 2 - curve * w * 0.5;
       return (
         <Group {...gp}>
-          <Rect width={w} height={h} fill="#475569" />
-          <Line points={[0, h / 2, w, h / 2]} stroke="#ffffff" strokeWidth={2} dash={[20, 15]} opacity={0.7} />
-          <Line points={[0, 0, w, 0]} stroke="#94a3b8" strokeWidth={1} />
-          <Line points={[0, h, w, h]} stroke="#94a3b8" strokeWidth={1} />
+          <Line points={[0, h / 2, w / 2, midY, w, h / 2]} stroke="#475569" strokeWidth={h} tension={0.5} lineCap="round" />
+          <Line points={[0, h / 2, w / 2, midY, w, h / 2]} stroke="#ffffff" strokeWidth={1.5} tension={0.5} dash={[20, 15]} opacity={0.7} />
           {labelEl}
         </Group>
       );
+    }
 
     case 'intersection': {
       const roadW = w * 0.35;
@@ -260,13 +273,20 @@ export function renderElement({ el, onSelect, onChange }: RenderProps) {
         </Group>
       );
 
-    case 'arrow-sign':
+    case 'arrow-sign': {
+      const curve = el.curvature ?? 0;
+      const arrowColor = f === '#ffffff' ? '#1e293b' : f;
+      const midY = h / 2 - curve * w * 0.6;
+      const pts = Math.abs(curve) < 0.01
+        ? [0, h / 2, w, h / 2]
+        : [0, h / 2, w / 2, midY, w, h / 2];
       return (
         <Group {...gp}>
-          <Arrow points={[0, h / 2, w, h / 2]} fill={f === '#ffffff' ? '#1e293b' : f} stroke={f === '#ffffff' ? '#1e293b' : f} strokeWidth={3} pointerLength={10} pointerWidth={10} />
+          <Arrow points={pts} fill={arrowColor} stroke={arrowColor} strokeWidth={3} tension={Math.abs(curve) > 0.01 ? 0.5 : 0} pointerLength={10} pointerWidth={10} />
           {labelEl}
         </Group>
       );
+    }
 
     case 'measurement-line': {
       const distFt = Math.round(w * 0.3);
@@ -317,6 +337,26 @@ export function renderElement({ el, onSelect, onChange }: RenderProps) {
           {labelEl}
         </Group>
       );
+
+    case 'north-arrow': {
+      const r = Math.min(w, h) / 2;
+      const cx = w / 2;
+      const cy = h / 2;
+      const tip = cy - r * 0.72;
+      const base = cy + r * 0.12;
+      const spread = r * 0.26;
+      return (
+        <Group {...gp}>
+          <Circle x={cx} y={cy} radius={r * 0.9} fill="#ffffff" stroke="#1e293b" strokeWidth={1.5} />
+          <Line points={[cx, tip, cx - spread, base, cx, cy]} closed fill="#1e293b" stroke="none" />
+          <Line points={[cx, tip, cx + spread, base, cx, cy]} closed fill="#94a3b8" stroke="none" />
+          <Line points={[cx, tip, cx - spread, base, cx, cy, cx + spread, base]} closed fill="transparent" stroke="#1e293b" strokeWidth={1} />
+          <Circle x={cx} y={cy} radius={3.5} fill="#1e293b" />
+          <Text text="N" x={cx - 7} y={tip - 2} fontSize={13} fill="#1e293b" fontStyle="bold" fontFamily="system-ui" />
+          {el.label && el.label !== 'North Arrow 1' && el.label !== 'North Arrow' ? <Text text={el.label} y={-16} fontSize={11} fill="#000" fontFamily="system-ui" /> : null}
+        </Group>
+      );
+    }
 
     case 'street-light':
       return (

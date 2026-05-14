@@ -472,6 +472,17 @@ export default function App() {
                     style={{ width: '100%', accentColor: 'hsl(217,91%,60%)' }}
                     data-testid="prop-rotation" />
                 </div>
+                {(selectedEl.type === 'arrow-sign' || selectedEl.type === 'straight-road') && (
+                  <div>
+                    <label className="prop-label">
+                      Curvature ({Math.round((selectedEl.curvature ?? 0) * 100)}%)
+                    </label>
+                    <input type="range" min={-1} max={1} step={0.05} value={selectedEl.curvature ?? 0}
+                      onChange={e => updateElement(selectedEl.id, { curvature: Number(e.target.value) })}
+                      style={{ width: '100%', accentColor: 'hsl(217,91%,60%)' }}
+                      data-testid="prop-curvature" />
+                  </div>
+                )}
                 <div className="flex items-center gap-3">
                   <div>
                     <label className="prop-label">Fill</label>

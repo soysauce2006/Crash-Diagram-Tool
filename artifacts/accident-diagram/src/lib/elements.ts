@@ -9,6 +9,7 @@ export type CanvasElement = {
   fill: string;
   opacity: number;
   label: string;
+  curvature?: number;
 };
 
 export type CaseInfo = {
@@ -49,6 +50,7 @@ export const ELEMENT_DEFAULTS: Record<string, Partial<CanvasElement>> = {
   'arrow-sign':   { width: 40, height: 20, fill: '#ffffff' },
 
   'measurement-line': { width: 120, height: 20, fill: '#0ea5e9' },
+  'north-arrow':  { width: 52, height: 52, fill: '#1e293b' },
 
   tree:           { width: 36, height: 36, fill: '#16a34a' },
   building:       { width: 100, height: 80, fill: '#94a3b8' },
@@ -113,6 +115,7 @@ export const PALETTE_CATEGORIES = [
     label: 'Other',
     color: '#16a34a',
     items: [
+      { type: 'north-arrow', label: 'North Arrow', color: '#1e293b' },
       { type: 'tree', label: 'Tree', color: '#16a34a' },
       { type: 'building', label: 'Building', color: '#94a3b8' },
       { type: 'fire-hydrant', label: 'Fire Hydrant', color: '#dc2626' },
