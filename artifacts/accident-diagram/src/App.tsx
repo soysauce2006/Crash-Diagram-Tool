@@ -101,6 +101,7 @@ export default function App() {
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
         if ((e.key === 'z' && e.shiftKey) || e.key === 'y') { e.preventDefault(); redo(); }
+        if (e.key === 'd') { e.preventDefault(); duplicateSelected(); }
       }
       if (e.key === 'Escape') { setActiveTool(null); setSelectedId(null); }
     };
@@ -139,6 +140,19 @@ export default function App() {
       return next;
     });
   }, [pushHistory]);
+
+  const duplicateSelected = useCallback(() => {
+    if (!selectedId) return;
+    setElements(prev => {
+      const src = prev.find(el => el.id === selectedId);
+      if (!src) return prev;
+      const copy: CanvasElement = { ...src, id: nextId(), x: src.x + 20, y: src.y + 20 };
+      const next = [...prev, copy];
+      pushHistory(next);
+      setSelectedId(copy.id);
+      return next;
+    });
+  }, [selectedId, pushHistory]);
 
   const deleteSelected = useCallback(() => {
     if (!selectedId) return;
@@ -411,6 +425,7 @@ export default function App() {
             scaleX={zoom}
             scaleY={zoom}
             onClick={handleStageClick}
+            onContextMenu={(e) => { e.evt.preventDefault(); setSelectedId(null); setActiveTool(null); }}
             onWheel={handleWheel}
             draggable={!activeTool}
             onDragEnd={handleStageDragEnd}
@@ -564,6 +579,10 @@ export default function App() {
                     Send Back
                   </button>
                 </div>
+                <button className="toolbar-btn w-full" onClick={duplicateSelected} data-testid="btn-duplicate-element"
+                  style={{ color: 'hsl(217,91%,70%)', borderColor: 'hsl(217,91%,35%)' }}>
+                  Duplicate  (Ctrl+D)
+                </button>
                 <button className="toolbar-btn danger w-full" onClick={deleteSelected} data-testid="btn-delete-element">
                   <Trash2 size={13} /> Delete Element
                 </button>
