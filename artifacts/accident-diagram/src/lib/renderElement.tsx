@@ -112,6 +112,24 @@ export function renderElement({ el, onSelect, onChange }: RenderProps) {
         </Group>
       );
 
+    case 'four-lane-highway':
+      return (
+        <Group {...gp}>
+          {/* Road base */}
+          <Rect width={w} height={h} fill="#475569" />
+          {/* Edge border lines */}
+          <Line points={[0, 0, w, 0]} stroke="#94a3b8" strokeWidth={1.5} />
+          <Line points={[0, h, w, h]} stroke="#94a3b8" strokeWidth={1.5} />
+          {/* Dashed white lane dividers at 1/4 and 3/4 */}
+          <Line points={[0, h * 0.25, w, h * 0.25]} stroke="#ffffff" strokeWidth={2} dash={[20, 15]} opacity={0.7} />
+          <Line points={[0, h * 0.75, w, h * 0.75]} stroke="#ffffff" strokeWidth={2} dash={[20, 15]} opacity={0.7} />
+          {/* Solid yellow double-line center median at 50% */}
+          <Line points={[0, h * 0.5 - 3, w, h * 0.5 - 3]} stroke="#eab308" strokeWidth={2} />
+          <Line points={[0, h * 0.5 + 3, w, h * 0.5 + 3]} stroke="#eab308" strokeWidth={2} />
+          {labelEl}
+        </Group>
+      );
+
     case 'straight-road': {
       const curve = el.curvature ?? 0;
       if (Math.abs(curve) < 0.01) {
