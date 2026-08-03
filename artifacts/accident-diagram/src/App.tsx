@@ -545,7 +545,7 @@ export default function App() {
                     style={{ width: '100%', accentColor: 'hsl(217,91%,60%)' }}
                     data-testid="prop-rotation" />
                 </div>
-                {(selectedEl.type === 'arrow-sign' || selectedEl.type === 'straight-road') && (
+                {(selectedEl.type === 'arrow-sign' || selectedEl.type === 'straight-road' || selectedEl.type === 'four-lane-highway-curve') && (
                   <div>
                     <label className="prop-label">
                       Curvature ({Math.round((selectedEl.curvature ?? 0) * 100)}%)

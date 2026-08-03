@@ -34,6 +34,7 @@ export const ELEMENT_DEFAULTS: Record<string, Partial<CanvasElement>> = {
 
   'straight-road': { width: 300, height: 80, fill: '#475569' },
   'four-lane-highway': { width: 300, height: 180, fill: '#475569' },
+  'four-lane-highway-curve': { width: 300, height: 180, fill: '#475569', curvature: 0.3 },
   'four-lane-median':  { width: 300, height: 200, fill: '#475569' },
   intersection:    { width: 160, height: 160, fill: '#475569' },
   crosswalk:       { width: 40, height: 100, fill: '#ffffff' },
@@ -81,6 +82,7 @@ export const PALETTE_CATEGORIES = [
     items: [
       { type: 'straight-road', label: 'Straight Road', color: '#475569' },
       { type: 'four-lane-highway', label: 'Four-Lane Highway', color: '#475569' },
+      { type: 'four-lane-highway-curve', label: 'Four-Lane Highway (Curve)', color: '#475569' },
       { type: 'four-lane-median', label: 'Four-Lane w/ Median', color: '#4d7c0f' },
       { type: 'intersection', label: 'Intersection', color: '#64748b' },
       { type: 'crosswalk', label: 'Crosswalk', color: '#cbd5e1' },

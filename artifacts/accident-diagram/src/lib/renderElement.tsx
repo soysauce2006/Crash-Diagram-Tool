@@ -165,6 +165,30 @@ export function renderElement({ el, onSelect, onChange }: RenderProps) {
         </Group>
       );
 
+    case 'four-lane-highway-curve': {
+      const curve = el.curvature ?? 0.3;
+      const midY = h / 2 - curve * w * 0.5;
+      // Offset helper: returns [x0, y0+dy, x1, y1+dy, x2, y2+dy] control points
+      const lanePoints = (dy: number) => [0, h / 2 + dy, w / 2, midY + dy, w, h / 2 + dy];
+      return (
+        <Group {...gp}>
+          {/* Road base */}
+          <Line points={lanePoints(0)} stroke="#475569" strokeWidth={h} tension={0.5} lineCap="butt" />
+          {/* Top edge border */}
+          <Line points={lanePoints(-h / 2)} stroke="#94a3b8" strokeWidth={1.5} tension={0.5} />
+          {/* Bottom edge border */}
+          <Line points={lanePoints(h / 2)} stroke="#94a3b8" strokeWidth={1.5} tension={0.5} />
+          {/* Dashed white lane dividers at ±25% from center */}
+          <Line points={lanePoints(-h * 0.25)} stroke="#ffffff" strokeWidth={2} tension={0.5} dash={[20, 15]} opacity={0.7} />
+          <Line points={lanePoints(h * 0.25)} stroke="#ffffff" strokeWidth={2} tension={0.5} dash={[20, 15]} opacity={0.7} />
+          {/* Solid yellow double-line center median */}
+          <Line points={lanePoints(-3)} stroke="#eab308" strokeWidth={2} tension={0.5} />
+          <Line points={lanePoints(3)} stroke="#eab308" strokeWidth={2} tension={0.5} />
+          {labelEl}
+        </Group>
+      );
+    }
+
     case 'four-lane-median':
       return (
         <Group {...gp}>
