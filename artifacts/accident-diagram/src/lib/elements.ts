@@ -30,9 +30,11 @@ export const ELEMENT_DEFAULTS: Record<string, Partial<CanvasElement>> = {
   motorcycle:      { width: 38, height: 14, fill: '#10b981' },
   bicycle:         { width: 32, height: 10, fill: '#f59e0b' },
   pedestrian:      { width: 18, height: 18, fill: '#ef4444' },
+  overturn:        { width: 72, height: 72, fill: '#3b82f6' },
 
   'straight-road': { width: 300, height: 80, fill: '#475569' },
   'four-lane-highway': { width: 300, height: 180, fill: '#475569' },
+  'four-lane-median':  { width: 300, height: 200, fill: '#475569' },
   intersection:    { width: 160, height: 160, fill: '#475569' },
   crosswalk:       { width: 40, height: 100, fill: '#ffffff' },
   'lane-divider':  { width: 200, height: 6, fill: '#ffffff' },
@@ -70,6 +72,7 @@ export const PALETTE_CATEGORIES = [
       { type: 'motorcycle', label: 'Motorcycle', color: '#10b981' },
       { type: 'bicycle', label: 'Bicycle', color: '#f59e0b' },
       { type: 'pedestrian', label: 'Pedestrian', color: '#ef4444' },
+      { type: 'overturn', label: 'Over-Turn', color: '#ef4444' },
     ],
   },
   {
@@ -78,6 +81,7 @@ export const PALETTE_CATEGORIES = [
     items: [
       { type: 'straight-road', label: 'Straight Road', color: '#475569' },
       { type: 'four-lane-highway', label: 'Four-Lane Highway', color: '#475569' },
+      { type: 'four-lane-median', label: 'Four-Lane w/ Median', color: '#4d7c0f' },
       { type: 'intersection', label: 'Intersection', color: '#64748b' },
       { type: 'crosswalk', label: 'Crosswalk', color: '#cbd5e1' },
       { type: 'lane-divider', label: 'Lane Divider', color: '#fbbf24' },

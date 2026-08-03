@@ -112,6 +112,41 @@ export function renderElement({ el, onSelect, onChange }: RenderProps) {
         </Group>
       );
 
+    case 'overturn': {
+      const cx = w / 2;
+      const cy = h / 2;
+      const r = Math.min(w, h) * 0.36;
+      return (
+        <Group {...gp}>
+          {/* Car body centered in element */}
+          <Rect x={w * 0.18} y={h * 0.36} width={w * 0.64} height={h * 0.28} fill={f} cornerRadius={4} stroke="#1e293b" strokeWidth={1.5} />
+          <Rect x={w * 0.24} y={h * 0.39} width={w * 0.23} height={h * 0.22} fill="rgba(255,255,255,0.25)" cornerRadius={2} />
+          <Rect x={w * 0.53} y={h * 0.39} width={w * 0.23} height={h * 0.22} fill="rgba(255,255,255,0.25)" cornerRadius={2} />
+          {/* Rollover arc arrows (red) – top arc clockwise */}
+          <Arrow
+            points={[cx - r, cy - r * 0.15, cx - r * 0.6, cy - r, cx, cy - r * 1.05, cx + r * 0.6, cy - r, cx + r, cy - r * 0.15]}
+            tension={0.45}
+            fill="#ef4444"
+            stroke="#ef4444"
+            strokeWidth={2.5}
+            pointerLength={9}
+            pointerWidth={9}
+          />
+          {/* Bottom arc counter-clockwise */}
+          <Arrow
+            points={[cx + r, cy + r * 0.15, cx + r * 0.6, cy + r, cx, cy + r * 1.05, cx - r * 0.6, cy + r, cx - r, cy + r * 0.15]}
+            tension={0.45}
+            fill="#ef4444"
+            stroke="#ef4444"
+            strokeWidth={2.5}
+            pointerLength={9}
+            pointerWidth={9}
+          />
+          {labelEl}
+        </Group>
+      );
+    }
+
     case 'four-lane-highway':
       return (
         <Group {...gp}>
@@ -126,6 +161,27 @@ export function renderElement({ el, onSelect, onChange }: RenderProps) {
           {/* Solid yellow double-line center median at 50% */}
           <Line points={[0, h * 0.5 - 3, w, h * 0.5 - 3]} stroke="#eab308" strokeWidth={2} />
           <Line points={[0, h * 0.5 + 3, w, h * 0.5 + 3]} stroke="#eab308" strokeWidth={2} />
+          {labelEl}
+        </Group>
+      );
+
+    case 'four-lane-median':
+      return (
+        <Group {...gp}>
+          {/* Road base */}
+          <Rect width={w} height={h} fill="#475569" />
+          {/* Raised median strip (grass/concrete) */}
+          <Rect x={0} y={h * 0.41} width={w} height={h * 0.18} fill="#4d7c0f" />
+          {/* Median edge markings (solid white curb lines) */}
+          <Line points={[0, h * 0.41, w, h * 0.41]} stroke="#ffffff" strokeWidth={2.5} />
+          <Line points={[0, h * 0.59, w, h * 0.59]} stroke="#ffffff" strokeWidth={2.5} />
+          {/* Edge border lines */}
+          <Line points={[0, 0, w, 0]} stroke="#94a3b8" strokeWidth={1.5} />
+          <Line points={[0, h, w, h]} stroke="#94a3b8" strokeWidth={1.5} />
+          {/* Dashed white lane divider – upper roadway (at 20%) */}
+          <Line points={[0, h * 0.2, w, h * 0.2]} stroke="#ffffff" strokeWidth={2} dash={[20, 15]} opacity={0.7} />
+          {/* Dashed white lane divider – lower roadway (at 80%) */}
+          <Line points={[0, h * 0.8, w, h * 0.8]} stroke="#ffffff" strokeWidth={2} dash={[20, 15]} opacity={0.7} />
           {labelEl}
         </Group>
       );
