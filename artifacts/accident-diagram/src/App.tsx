@@ -172,7 +172,8 @@ export default function App() {
       if (isStageOrBg) setSelectedId(null);
       return;
     }
-    if (!isStageOrBg) return;
+    // When a tool is active, place on click regardless of what was hit
+    e.cancelBubble = true;
     const stage = stageRef.current;
     if (!stage) return;
     const pos = stage.getPointerPosition();
