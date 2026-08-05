@@ -62,6 +62,7 @@ export default function App() {
   const [mapImage, setMapImage] = useState<HTMLImageElement | null>(null);
   const [mapOpacity, setMapOpacity] = useState(0.55);
   const [showMapModal, setShowMapModal] = useState(false);
+  const [mapCoords, setMapCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -351,7 +352,7 @@ export default function App() {
           <Map size={13} /> Map BG
         </button>
         {mapDataUrl && (
-          <button className="toolbar-btn" onClick={() => setMapDataUrl(null)} title="Remove map background" data-testid="btn-remove-map" style={{ color: '#ef4444', padding: '5px 7px' }}>
+          <button className="toolbar-btn" onClick={() => { setMapDataUrl(null); setMapCoords(null); }} title="Remove map background" data-testid="btn-remove-map" style={{ color: '#ef4444', padding: '5px 7px' }}>
             <X size={13} />
           </button>
         )}
@@ -499,7 +500,7 @@ export default function App() {
                   <button className="toolbar-btn flex-1" style={{ fontSize: 11 }} onClick={() => setShowMapModal(true)} data-testid="btn-change-map">
                     Change Location
                   </button>
-                  <button className="toolbar-btn danger flex-1" style={{ fontSize: 11 }} onClick={() => setMapDataUrl(null)} data-testid="btn-remove-map-panel">
+                  <button className="toolbar-btn danger flex-1" style={{ fontSize: 11 }} onClick={() => { setMapDataUrl(null); setMapCoords(null); }} data-testid="btn-remove-map-panel">
                     Remove
                   </button>
                 </div>
@@ -674,13 +675,51 @@ export default function App() {
               </div>
             </div>
           </div>
+
+          {/* Collision Coordinates – shown only when a map background is active */}
+          {mapCoords && (
+            <div>
+              <div className="px-3 py-2" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'hsl(215,20%,45%)', borderBottom: '1px solid hsl(215,25%,15%)', borderTop: '1px solid hsl(215,25%,15%)' }}>
+                Collision Coordinates
+              </div>
+              <div className="p-3 flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="prop-label">Latitude</label>
+                    <input
+                      type="text"
+                      className="prop-input"
+                      readOnly
+                      value={mapCoords.lat.toFixed(6)}
+                      style={{ fontFamily: 'monospace', cursor: 'default' }}
+                      data-testid="coord-lat"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="prop-label">Longitude</label>
+                    <input
+                      type="text"
+                      className="prop-input"
+                      readOnly
+                      value={mapCoords.lng.toFixed(6)}
+                      style={{ fontFamily: 'monospace', cursor: 'default' }}
+                      data-testid="coord-lng"
+                    />
+                  </div>
+                </div>
+                <p style={{ fontSize: 10, color: 'hsl(215,20%,50%)', margin: 0, lineHeight: 1.4 }}>
+                  Center of the applied map background. Re-apply the map after panning to update.
+                </p>
+              </div>
+            </div>
+          )}
         </aside>
       </div>
 
       {showMapModal && (
         <MapBackgroundModal
           onClose={() => setShowMapModal(false)}
-          onApply={(dataUrl) => { setMapDataUrl(dataUrl); setShowMapModal(false); }}
+          onApply={(dataUrl, lat, lng) => { setMapDataUrl(dataUrl); setMapCoords({ lat, lng }); setShowMapModal(false); }}
           canvasWidth={STAGE_W}
           canvasHeight={STAGE_H}
         />
