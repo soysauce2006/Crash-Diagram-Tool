@@ -1,0 +1,55 @@
+name: Build Windows Installer (.exe)
+
+# Run on every push to main, or trigger manually from the Actions tab.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+
+      # ── Node + pnpm ───────────────────────────────────────────────────────
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # ── Install workspace deps ─────────────────────────────────────────────
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── Build the Vite app with the Electron-specific config ───────────────
+      # (relative base path, no PORT/BASE_PATH env vars required)
+      - name: Build Vite app (Electron target)
+        working-directory: artifacts/accident-diagram
+        run: pnpm run build:electron
+
+      # ── Package with electron-builder ─────────────────────────────────────
+      - name: Package Electron app for Windows
+        working-directory: artifacts/accident-diagram
+        run: pnpm run electron:build
+        env:
+          # Allows electron-builder to publish GitHub Releases if desired later
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Upload the installer as a workflow artifact ────────────────────────
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-diagram-windows-installer
+          # electron-builder outputs NSIS installer + portable exe here
+          path: artifacts/accident-diagram/dist/electron-dist/*.exe
+          if-no-files-found: error
+          retention-days: 30

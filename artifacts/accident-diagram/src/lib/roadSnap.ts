@@ -2,6 +2,31 @@ import type { CanvasElement } from './elements';
 
 const TILE_PX = 256;
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+interface OsmNode { lat: number; lon: number; }
+export interface OsmWay { geometry?: OsmNode[]; }
+
+// ---------------------------------------------------------------------------
+// Internal helper — converts a raw Overpass response to canvas-pixel polylines
+// ---------------------------------------------------------------------------
+function extractPolylines(
+  data: { elements: OsmWay[] },
+  topLeftPx: number,
+  topLeftPy: number,
+  zoom: number,
+): [number, number][][] {
+  return data.elements
+    .filter(el => (el.geometry?.length ?? 0) >= 2)
+    .map(el =>
+      el.geometry!.map(node => [
+        lon2px(node.lon, zoom) - topLeftPx,
+        lat2px(node.lat, zoom) - topLeftPy,
+      ] as [number, number]),
+    );
+}
+
 function lon2px(lon: number, zoom: number): number {
   return (lon + 180) / 360 * Math.pow(2, zoom) * TILE_PX;
 }
@@ -43,27 +68,30 @@ export async function fetchRoadPolylines(
   const hwFilter = 'motorway|trunk|primary|secondary|tertiary|unclassified|residential|service|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link|road';
   const query = `[out:json][timeout:25];way["highway"~"^(${hwFilter})$"](${south},${west},${north},${east});out geom;`;
 
-  // Route through our API server proxy to avoid browser CORS/CSP restrictions
+  const topLeftPx = centerPx - canvasW / 2;
+  const topLeftPy = centerPy - canvasH / 2;
+
+  // In Electron the main process handles Overpass directly (no CORS).
+  // In the browser we route through the Express proxy.
+  const electronAPI = (typeof window !== 'undefined' && (window as any).electronAPI) as
+    | { overpass: (q: string) => Promise<{ elements: OsmWay[] }> }
+    | undefined;
+
+  if (electronAPI) {
+    const data = await electronAPI.overpass(query);
+    return extractPolylines(data, topLeftPx, topLeftPy, zoom);
+  }
+
   const proxyUrl = `${import.meta.env.BASE_URL}api/overpass?data=${encodeURIComponent(query)}`;
   const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(40_000) });
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
     throw new Error(body.error ?? `Proxy error ${resp.status}`);
   }
-  const data = await resp.json();
+  const data: { elements: OsmWay[] } = await resp.json();
   if (!Array.isArray(data.elements)) throw new Error('Unexpected response from road proxy');
 
-  const topLeftPx = centerPx - canvasW / 2;
-  const topLeftPy = centerPy - canvasH / 2;
-
-  return (data.elements ?? [])
-    .filter(el => (el.geometry?.length ?? 0) >= 2)
-    .map(el =>
-      el.geometry!.map(node => [
-        lon2px(node.lon, zoom) - topLeftPx,
-        lat2px(node.lat, zoom) - topLeftPy,
-      ] as [number, number]),
-    );
+  return extractPolylines(data, topLeftPx, topLeftPy, zoom);
 }
 
 /**
