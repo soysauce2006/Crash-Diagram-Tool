@@ -35,34 +35,16 @@ export async function fetchRoadPolylines(
   const south = px2lat(centerPy + canvasH / 2, zoom);
 
   const query = `[out:json][timeout:15];way["highway"](${south},${west},${north},${east});out geom;`;
-  const encoded = encodeURIComponent(query);
 
-  // Try primary then fallback Overpass endpoints
-  const endpoints = [
-    `https://overpass-api.de/api/interpreter?data=${encoded}`,
-    `https://overpass.openstreetmap.ru/api/interpreter?data=${encoded}`,
-  ];
-
-  let data: { elements?: { geometry?: { lat: number; lon: number }[] }[] } | null = null;
-  let lastErr = '';
-
-  for (const url of endpoints) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15_000);
-      const resp = await fetch(url, { signal: controller.signal });
-      clearTimeout(timer);
-      if (!resp.ok) { lastErr = `HTTP ${resp.status}`; continue; }
-      const json = await resp.json();
-      if (!Array.isArray(json.elements)) { lastErr = 'unexpected response'; continue; }
-      data = json;
-      break;
-    } catch (e) {
-      lastErr = String(e);
-    }
+  // Route through our API server proxy to avoid browser CORS/CSP restrictions
+  const proxyUrl = `${import.meta.env.BASE_URL}api/overpass?data=${encodeURIComponent(query)}`;
+  const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(25_000) });
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(body.error ?? `Proxy error ${resp.status}`);
   }
-
-  if (!data) throw new Error(`All Overpass endpoints failed. Last error: ${lastErr}`);
+  const data = await resp.json();
+  if (!Array.isArray(data.elements)) throw new Error('Unexpected response from road proxy');
 
   const topLeftPx = centerPx - canvasW / 2;
   const topLeftPy = centerPy - canvasH / 2;
