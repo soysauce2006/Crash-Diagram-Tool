@@ -504,6 +504,7 @@ export default function App() {
                           ...changes,
                           x: snapped.x - (changes.width ?? el.width) / 2,
                           y: snapped.y - (changes.height ?? el.height) / 2,
+                          rotation: snapped.rotation,
                         };
                       }
                     }

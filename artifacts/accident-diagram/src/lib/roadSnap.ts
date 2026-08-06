@@ -61,8 +61,9 @@ export async function fetchRoadPolylines(
 
 /**
  * Find the nearest point on any road segment within `thresholdScreenPx` screen
- * pixels (divided by zoom to get canvas-space distance). Returns null if nothing
- * is close enough.
+ * pixels (divided by zoom to get canvas-space distance).
+ * Returns position + rotation (degrees, matching the road direction) or null if
+ * nothing is close enough.
  */
 export function snapToRoads(
   x: number,
@@ -70,9 +71,9 @@ export function snapToRoads(
   polylines: [number, number][][],
   thresholdScreenPx: number,
   zoom: number,
-): { x: number; y: number } | null {
+): { x: number; y: number; rotation: number } | null {
   const threshold = thresholdScreenPx / zoom;
-  let best: { x: number; y: number } | null = null;
+  let best: { x: number; y: number; rotation: number } | null = null;
   let bestDist = threshold;
 
   for (const polyline of polylines) {
@@ -89,7 +90,9 @@ export function snapToRoads(
       const dist = Math.hypot(x - nx, y - ny);
       if (dist < bestDist) {
         bestDist = dist;
-        best = { x: nx, y: ny };
+        // Road angle in degrees — Konva rotation is clockwise from the positive x-axis
+        const rotation = Math.atan2(dy, dx) * (180 / Math.PI);
+        best = { x: nx, y: ny, rotation };
       }
     }
   }
