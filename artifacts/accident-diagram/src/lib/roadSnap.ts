@@ -36,11 +36,14 @@ export async function fetchRoadPolylines(
   const north = px2lat(centerPy - canvasH / 2, zoom);
   const south = px2lat(centerPy + canvasH / 2, zoom);
 
-  const query = `[out:json][timeout:15];way["highway"](${south},${west},${north},${east});out geom;`;
+  // Limit to driveable road types — excludes footpaths, steps, etc. which add
+  // bulk without being useful for snap; [timeout:25] gives Overpass enough time.
+  const hwFilter = 'motorway|trunk|primary|secondary|tertiary|unclassified|residential|service|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link|road';
+  const query = `[out:json][timeout:25];way["highway"~"^(${hwFilter})$"](${south},${west},${north},${east});out geom;`;
 
   // Route through our API server proxy to avoid browser CORS/CSP restrictions
   const proxyUrl = `${import.meta.env.BASE_URL}api/overpass?data=${encodeURIComponent(query)}`;
-  const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(25_000) });
+  const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(40_000) });
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
     throw new Error(body.error ?? `Proxy error ${resp.status}`);

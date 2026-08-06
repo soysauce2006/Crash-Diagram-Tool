@@ -20,7 +20,7 @@ router.get("/overpass", async (req, res) => {
     try {
       const url = `${base}?data=${encodeURIComponent(query)}`;
       const upstream = await fetch(url, {
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(35_000),
         headers: {
           "Accept": "*/*",
           "User-Agent": "AccidentDiagramTool/1.0",
