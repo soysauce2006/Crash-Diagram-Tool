@@ -68,6 +68,7 @@ export default function App() {
   const [roadPolylines, setRoadPolylines] = useState<[number, number][][][]>([]);
   const [snapEnabled, setSnapEnabled] = useState(false);
   const [roadsLoading, setRoadsLoading] = useState(false);
+  const [roadsError, setRoadsError] = useState<string | null>(null);
 
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -362,12 +363,26 @@ export default function App() {
           <button
             className={`toolbar-btn ${snapEnabled ? 'active' : ''}`}
             onClick={() => setSnapEnabled(v => !v)}
-            title={roadsLoading ? 'Loading road data…' : roadPolylines.length === 0 ? 'No road data available' : 'Snap elements to road centerlines'}
+            title={
+              roadsLoading ? 'Loading road data…' :
+              roadsError ? roadsError :
+              roadPolylines.length === 0 ? 'No road data loaded' :
+              `Snap to roads (${roadPolylines.length} segments loaded)`
+            }
             disabled={roadsLoading || roadPolylines.length === 0}
             data-testid="btn-snap-roads"
-            style={snapEnabled ? { color: 'hsl(142,76%,55%)', borderColor: 'hsl(142,76%,36%)' } : {}}
+            style={
+              roadsError ? { color: '#ef4444', borderColor: '#ef4444' } :
+              snapEnabled ? { color: 'hsl(142,76%,55%)', borderColor: 'hsl(142,76%,36%)' } :
+              {}
+            }
           >
-            {roadsLoading ? <span style={{ fontSize: 10 }}>…</span> : <span style={{ fontSize: 11 }}>⌖</span>} Snap
+            {roadsLoading
+              ? <span style={{ fontSize: 10 }}>…</span>
+              : roadsError
+                ? <span style={{ fontSize: 11 }}>⚠</span>
+                : <span style={{ fontSize: 11 }}>⌖</span>
+            } Snap
           </button>
           <button className="toolbar-btn" onClick={() => { setMapDataUrl(null); setMapCoords(null); setMapZoom(null); setRoadPolylines([]); setSnapEnabled(false); }} title="Remove map background" data-testid="btn-remove-map" style={{ color: '#ef4444', padding: '5px 7px' }}>
             <X size={13} />
@@ -536,7 +551,7 @@ export default function App() {
                   <button className="toolbar-btn flex-1" style={{ fontSize: 11 }} onClick={() => setShowMapModal(true)} data-testid="btn-change-map">
                     Change Location
                   </button>
-                  <button className="toolbar-btn danger flex-1" style={{ fontSize: 11 }} onClick={() => { setMapDataUrl(null); setMapCoords(null); }} data-testid="btn-remove-map-panel">
+                  <button className="toolbar-btn danger flex-1" style={{ fontSize: 11 }} onClick={() => { setMapDataUrl(null); setMapCoords(null); setMapZoom(null); setRoadPolylines([]); setSnapEnabled(false); setRoadsError(null); }} data-testid="btn-remove-map-panel">
                     Remove
                   </button>
                 </div>
@@ -763,9 +778,10 @@ export default function App() {
             // Fetch road geometry for snap-to-road
             setRoadsLoading(true);
             setRoadPolylines([]);
+            setRoadsError(null);
             fetchRoadPolylines(lat, lng, zoom, STAGE_W, STAGE_H)
-              .then(polys => setRoadPolylines(polys))
-              .catch(() => {/* silently ignore – snap just won't work */})
+              .then(polys => { setRoadPolylines(polys); if (polys.length === 0) setRoadsError('No roads found in this area'); })
+              .catch((err) => { console.error('[road-snap]', err); setRoadsError('Could not load road data'); })
               .finally(() => setRoadsLoading(false));
           }}
           canvasWidth={STAGE_W}
