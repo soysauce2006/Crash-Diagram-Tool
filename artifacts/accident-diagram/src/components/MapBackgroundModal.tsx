@@ -147,7 +147,9 @@ export function MapBackgroundModal({ onClose, onApply, canvasWidth, canvasHeight
     setError('');
     try {
       const center = mapRef.current.getCenter();
-      const mapZoom = mapRef.current.getZoom();
+      // Floor to integer — OSM tiles are only served at integer zoom levels;
+      // using a fractional zoom would misalign the pixel math vs the rendered tiles.
+      const mapZoom = Math.floor(mapRef.current.getZoom());
       const dataUrl = await stitchMapTiles(center.lat, center.lng, mapZoom, canvasWidth, canvasHeight);
       onApply(dataUrl, center.lat, center.lng, mapZoom);
     } catch {

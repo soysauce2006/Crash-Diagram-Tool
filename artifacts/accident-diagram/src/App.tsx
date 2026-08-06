@@ -479,6 +479,20 @@ export default function App() {
               {mapImage && (
                 <KonvaImage image={mapImage} x={0} y={0} width={STAGE_W} height={STAGE_H} opacity={mapOpacity} />
               )}
+              {/* Road overlay — shown when snap is enabled to confirm alignment */}
+              {snapEnabled && roadPolylines.map((poly, pi) =>
+                poly.length >= 2 && (
+                  <Line
+                    key={`road-${pi}`}
+                    points={poly.flat()}
+                    stroke="rgba(59,130,246,0.55)"
+                    strokeWidth={3}
+                    lineCap="round"
+                    lineJoin="round"
+                    listening={false}
+                  />
+                )
+              )}
               {/* Grid */}
               {showGrid && <GridLines w={STAGE_W} h={STAGE_H} />}
               {/* Subtle border */}

@@ -26,6 +26,8 @@ export async function fetchRoadPolylines(
   canvasW: number,
   canvasH: number,
 ): Promise<[number, number][][]> {
+  // Must match the integer zoom used in stitchMapTiles tile URLs
+  zoom = Math.floor(zoom);
   const centerPx = lon2px(centerLng, zoom);
   const centerPy = lat2px(centerLat, zoom);
 
