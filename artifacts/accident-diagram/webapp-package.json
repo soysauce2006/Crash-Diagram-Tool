@@ -1,0 +1,15 @@
+{
+  "name": "crash-scene-diagram-tool",
+  "version": "1.0.0",
+  "description": "Accident reconstruction diagram tool — self-hosted web server",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
