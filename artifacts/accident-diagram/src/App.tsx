@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import { CanvasElement, CaseInfo, ELEMENT_DEFAULTS, PALETTE_CATEGORIES } from './lib/elements';
 import { renderElement } from './lib/renderElement';
 import { MapBackgroundModal } from './components/MapBackgroundModal';
+import { fetchRoadPolylines, snapToRoads } from './lib/roadSnap';
 
 const STAGE_W = 1100;
 const STAGE_H = 800;
@@ -63,6 +64,10 @@ export default function App() {
   const [mapOpacity, setMapOpacity] = useState(0.55);
   const [showMapModal, setShowMapModal] = useState(false);
   const [mapCoords, setMapCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapZoom, setMapZoom] = useState<number | null>(null);
+  const [roadPolylines, setRoadPolylines] = useState<[number, number][][][]>([]);
+  const [snapEnabled, setSnapEnabled] = useState(false);
+  const [roadsLoading, setRoadsLoading] = useState(false);
 
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -353,11 +358,21 @@ export default function App() {
         >
           <Map size={13} /> Map BG
         </button>
-        {mapDataUrl && (
-          <button className="toolbar-btn" onClick={() => { setMapDataUrl(null); setMapCoords(null); }} title="Remove map background" data-testid="btn-remove-map" style={{ color: '#ef4444', padding: '5px 7px' }}>
+        {mapDataUrl && (<>
+          <button
+            className={`toolbar-btn ${snapEnabled ? 'active' : ''}`}
+            onClick={() => setSnapEnabled(v => !v)}
+            title={roadsLoading ? 'Loading road data…' : roadPolylines.length === 0 ? 'No road data available' : 'Snap elements to road centerlines'}
+            disabled={roadsLoading || roadPolylines.length === 0}
+            data-testid="btn-snap-roads"
+            style={snapEnabled ? { color: 'hsl(142,76%,55%)', borderColor: 'hsl(142,76%,36%)' } : {}}
+          >
+            {roadsLoading ? <span style={{ fontSize: 10 }}>…</span> : <span style={{ fontSize: 11 }}>⌖</span>} Snap
+          </button>
+          <button className="toolbar-btn" onClick={() => { setMapDataUrl(null); setMapCoords(null); setMapZoom(null); setRoadPolylines([]); setSnapEnabled(false); }} title="Remove map background" data-testid="btn-remove-map" style={{ color: '#ef4444', padding: '5px 7px' }}>
             <X size={13} />
           </button>
-        )}
+        </>)}
         <div className="flex-1" />
         <button className="toolbar-btn" onClick={exportJpeg} data-testid="btn-export-jpeg">
           <ImageDown size={13} /> Export JPEG
@@ -459,7 +474,26 @@ export default function App() {
                   el,
                   isSelected: el.id === selectedId,
                   onSelect: () => setSelectedId(el.id),
-                  onChange: (changes) => updateElement(el.id, changes),
+                  onChange: (changes) => {
+                    // Snap dragged position to nearest road centerline
+                    if (
+                      snapEnabled &&
+                      roadPolylines.length > 0 &&
+                      (changes.x !== undefined || changes.y !== undefined)
+                    ) {
+                      const cx = (changes.x ?? el.x) + (changes.width ?? el.width) / 2;
+                      const cy = (changes.y ?? el.y) + (changes.height ?? el.height) / 2;
+                      const snapped = snapToRoads(cx, cy, roadPolylines, 24, zoom);
+                      if (snapped) {
+                        changes = {
+                          ...changes,
+                          x: snapped.x - (changes.width ?? el.width) / 2,
+                          y: snapped.y - (changes.height ?? el.height) / 2,
+                        };
+                      }
+                    }
+                    updateElement(el.id, changes);
+                  },
                 });
                 return node ? cloneElement(node, { key: el.id }) : null;
               })}
@@ -721,7 +755,19 @@ export default function App() {
       {showMapModal && (
         <MapBackgroundModal
           onClose={() => setShowMapModal(false)}
-          onApply={(dataUrl, lat, lng) => { setMapDataUrl(dataUrl); setMapCoords({ lat, lng }); setShowMapModal(false); }}
+          onApply={(dataUrl, lat, lng, zoom: number) => {
+            setMapDataUrl(dataUrl);
+            setMapCoords({ lat, lng });
+            setMapZoom(zoom);
+            setShowMapModal(false);
+            // Fetch road geometry for snap-to-road
+            setRoadsLoading(true);
+            setRoadPolylines([]);
+            fetchRoadPolylines(lat, lng, zoom, STAGE_W, STAGE_H)
+              .then(polys => setRoadPolylines(polys))
+              .catch(() => {/* silently ignore – snap just won't work */})
+              .finally(() => setRoadsLoading(false));
+          }}
           canvasWidth={STAGE_W}
           canvasHeight={STAGE_H}
         />

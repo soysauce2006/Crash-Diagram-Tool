@@ -80,7 +80,7 @@ async function stitchMapTiles(
 
 interface Props {
   onClose: () => void;
-  onApply: (dataUrl: string, lat: number, lng: number) => void;
+  onApply: (dataUrl: string, lat: number, lng: number, zoom: number) => void;
   canvasWidth: number;
   canvasHeight: number;
 }
@@ -149,7 +149,7 @@ export function MapBackgroundModal({ onClose, onApply, canvasWidth, canvasHeight
       const center = mapRef.current.getCenter();
       const mapZoom = mapRef.current.getZoom();
       const dataUrl = await stitchMapTiles(center.lat, center.lng, mapZoom, canvasWidth, canvasHeight);
-      onApply(dataUrl, center.lat, center.lng);
+      onApply(dataUrl, center.lat, center.lng, mapZoom);
     } catch {
       setError('Failed to load map tiles. Check your connection and try again.');
     } finally {
