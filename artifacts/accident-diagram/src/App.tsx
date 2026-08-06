@@ -624,16 +624,45 @@ export default function App() {
                     style={{ width: '100%', accentColor: 'hsl(217,91%,60%)' }}
                     data-testid="prop-rotation" />
                 </div>
-                {(selectedEl.type === 'arrow-sign' || selectedEl.type === 'straight-road' || selectedEl.type === 'four-lane-highway-curve') && (
-                  <div>
-                    <label className="prop-label">
-                      Curvature ({Math.round((selectedEl.curvature ?? 0) * 100)}%)
-                    </label>
-                    <input type="range" min={-1} max={1} step={0.05} value={selectedEl.curvature ?? 0}
-                      onChange={e => updateElement(selectedEl.id, { curvature: Number(e.target.value) })}
-                      style={{ width: '100%', accentColor: 'hsl(217,91%,60%)' }}
-                      data-testid="prop-curvature" />
-                  </div>
+                {['straight-road','four-lane-highway','four-lane-highway-curve','four-lane-median','arrow-sign'].includes(selectedEl.type) && (
+                  <>
+                    {/* Lane count toggle — road elements only (not arrow-sign) */}
+                    {selectedEl.type !== 'arrow-sign' && (
+                      <div>
+                        <label className="prop-label">Lanes</label>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {[2, 4].map(n => {
+                            const defaultLanes = (selectedEl.type === 'straight-road') ? 2 : 4;
+                            const active = (selectedEl.lanes ?? defaultLanes) === n;
+                            return (
+                              <button
+                                key={n}
+                                className="toolbar-btn"
+                                style={{
+                                  flex: 1, fontSize: 12,
+                                  ...(active ? { background: 'hsl(217,91%,30%)', borderColor: 'hsl(217,91%,50%)', color: 'hsl(217,91%,80%)' } : {}),
+                                }}
+                                onClick={() => updateElement(selectedEl.id, { lanes: n })}
+                                data-testid={`prop-lanes-${n}`}
+                              >
+                                {n}-Lane
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {/* Curvature slider — all road types + arrow-sign */}
+                    <div>
+                      <label className="prop-label">
+                        Curvature ({Math.round((selectedEl.curvature ?? 0) * 100)}%)
+                      </label>
+                      <input type="range" min={-1} max={1} step={0.05} value={selectedEl.curvature ?? 0}
+                        onChange={e => updateElement(selectedEl.id, { curvature: Number(e.target.value) })}
+                        style={{ width: '100%', accentColor: 'hsl(217,91%,60%)' }}
+                        data-testid="prop-curvature" />
+                    </div>
+                  </>
                 )}
                 <div className="flex items-center gap-3">
                   <div>

@@ -10,6 +10,8 @@ export type CanvasElement = {
   opacity: number;
   label: string;
   curvature?: number;
+  /** Lane count for road elements (2 or 4). Default depends on element type. */
+  lanes?: number;
 };
 
 export type CaseInfo = {

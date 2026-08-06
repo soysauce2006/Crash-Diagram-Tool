@@ -148,86 +148,75 @@ export function renderElement({ el, onSelect, onChange }: RenderProps) {
     }
 
     case 'four-lane-highway':
-      return (
-        <Group {...gp}>
-          {/* Road base */}
-          <Rect width={w} height={h} fill="#475569" />
-          {/* Edge border lines */}
-          <Line points={[0, 0, w, 0]} stroke="#94a3b8" strokeWidth={1.5} />
-          <Line points={[0, h, w, h]} stroke="#94a3b8" strokeWidth={1.5} />
-          {/* Dashed white lane dividers at 1/4 and 3/4 */}
-          <Line points={[0, h * 0.25, w, h * 0.25]} stroke="#ffffff" strokeWidth={2} dash={[20, 15]} opacity={0.7} />
-          <Line points={[0, h * 0.75, w, h * 0.75]} stroke="#ffffff" strokeWidth={2} dash={[20, 15]} opacity={0.7} />
-          {/* Solid yellow double-line center median at 50% */}
-          <Line points={[0, h * 0.5 - 3, w, h * 0.5 - 3]} stroke="#eab308" strokeWidth={2} />
-          <Line points={[0, h * 0.5 + 3, w, h * 0.5 + 3]} stroke="#eab308" strokeWidth={2} />
-          {labelEl}
-        </Group>
-      );
+    case 'four-lane-highway-curve':
+    case 'straight-road': {
+      // Shared curved-road renderer for all straight/highway road types.
+      // roadPts(dy) returns 3 control points offset vertically by dy from the centerline,
+      // creating parallel curves that all follow the same arc.
+      const curve = el.curvature ?? (el.type === 'four-lane-highway-curve' ? 0.3 : 0);
+      const t = Math.abs(curve) > 0.005 ? 0.5 : 0; // catmull-rom tension (0 = straight)
+      const roadPts = (dy: number) => [0, h / 2 + dy, w / 2, h / 2 - curve * w * 0.5 + dy, w, h / 2 + dy];
 
-    case 'four-lane-highway-curve': {
-      const curve = el.curvature ?? 0.3;
-      const midY = h / 2 - curve * w * 0.5;
-      // Offset helper: returns [x0, y0+dy, x1, y1+dy, x2, y2+dy] control points
-      const lanePoints = (dy: number) => [0, h / 2 + dy, w / 2, midY + dy, w, h / 2 + dy];
+      // Default lanes: straight-road = 2, highway types = 4; overridable via el.lanes
+      const defaultLanes = el.type === 'straight-road' ? 2 : 4;
+      const lanes = el.lanes ?? defaultLanes;
+
+      if (lanes >= 4) {
+        // 4-lane: double yellow centre line + one dashed divider each side
+        return (
+          <Group {...gp}>
+            <Line points={roadPts(0)} stroke="#475569" strokeWidth={h} tension={t} lineCap="butt" />
+            {/* Edge border lines */}
+            <Line points={roadPts(-h / 2)} stroke="#94a3b8" strokeWidth={1.5} tension={t} />
+            <Line points={roadPts( h / 2)} stroke="#94a3b8" strokeWidth={1.5} tension={t} />
+            {/* Dashed lane dividers (±25% from centre) */}
+            <Line points={roadPts(-h * 0.25)} stroke="#ffffff" strokeWidth={2} tension={t} dash={[20, 15]} opacity={0.7} />
+            <Line points={roadPts( h * 0.25)} stroke="#ffffff" strokeWidth={2} tension={t} dash={[20, 15]} opacity={0.7} />
+            {/* Solid double-yellow centre line */}
+            <Line points={roadPts(-3)} stroke="#eab308" strokeWidth={2} tension={t} />
+            <Line points={roadPts( 3)} stroke="#eab308" strokeWidth={2} tension={t} />
+            {labelEl}
+          </Group>
+        );
+      }
+
+      // 2-lane: single dashed white centre line
       return (
         <Group {...gp}>
-          {/* Road base */}
-          <Line points={lanePoints(0)} stroke="#475569" strokeWidth={h} tension={0.5} lineCap="butt" />
-          {/* Top edge border */}
-          <Line points={lanePoints(-h / 2)} stroke="#94a3b8" strokeWidth={1.5} tension={0.5} />
-          {/* Bottom edge border */}
-          <Line points={lanePoints(h / 2)} stroke="#94a3b8" strokeWidth={1.5} tension={0.5} />
-          {/* Dashed white lane dividers at ±25% from center */}
-          <Line points={lanePoints(-h * 0.25)} stroke="#ffffff" strokeWidth={2} tension={0.5} dash={[20, 15]} opacity={0.7} />
-          <Line points={lanePoints(h * 0.25)} stroke="#ffffff" strokeWidth={2} tension={0.5} dash={[20, 15]} opacity={0.7} />
-          {/* Solid yellow double-line center median */}
-          <Line points={lanePoints(-3)} stroke="#eab308" strokeWidth={2} tension={0.5} />
-          <Line points={lanePoints(3)} stroke="#eab308" strokeWidth={2} tension={0.5} />
+          <Line points={roadPts(0)} stroke="#475569" strokeWidth={h} tension={t} lineCap="butt" />
+          {/* Edge border lines */}
+          <Line points={roadPts(-h / 2)} stroke="#94a3b8" strokeWidth={1} tension={t} />
+          <Line points={roadPts( h / 2)} stroke="#94a3b8" strokeWidth={1} tension={t} />
+          {/* Dashed centre line */}
+          <Line points={roadPts(0)} stroke="#ffffff" strokeWidth={2} tension={t} dash={[20, 15]} opacity={0.7} />
           {labelEl}
         </Group>
       );
     }
 
-    case 'four-lane-median':
+    case 'four-lane-median': {
+      // Divided highway with a raised (green) median strip. Supports curvature.
+      const curve = el.curvature ?? 0;
+      const t = Math.abs(curve) > 0.005 ? 0.5 : 0;
+      const roadPts = (dy: number) => [0, h / 2 + dy, w / 2, h / 2 - curve * w * 0.5 + dy, w, h / 2 + dy];
+      // Median occupies ±9% of height from centre; lanes occupy 20–41% and 59–80% offsets
+      const medH = h * 0.09;   // half-width of median strip
+      const laneDiv = h * 0.3; // lane divider offset from centre
       return (
         <Group {...gp}>
           {/* Road base */}
-          <Rect width={w} height={h} fill="#475569" />
-          {/* Raised median strip (grass/concrete) */}
-          <Rect x={0} y={h * 0.41} width={w} height={h * 0.18} fill="#4d7c0f" />
-          {/* Median edge markings (solid white curb lines) */}
-          <Line points={[0, h * 0.41, w, h * 0.41]} stroke="#ffffff" strokeWidth={2.5} />
-          <Line points={[0, h * 0.59, w, h * 0.59]} stroke="#ffffff" strokeWidth={2.5} />
+          <Line points={roadPts(0)} stroke="#475569" strokeWidth={h} tension={t} lineCap="butt" />
+          {/* Raised median (grass/concrete) */}
+          <Line points={roadPts(0)} stroke="#4d7c0f" strokeWidth={h * 0.18} tension={t} lineCap="butt" />
           {/* Edge border lines */}
-          <Line points={[0, 0, w, 0]} stroke="#94a3b8" strokeWidth={1.5} />
-          <Line points={[0, h, w, h]} stroke="#94a3b8" strokeWidth={1.5} />
-          {/* Dashed white lane divider – upper roadway (at 20%) */}
-          <Line points={[0, h * 0.2, w, h * 0.2]} stroke="#ffffff" strokeWidth={2} dash={[20, 15]} opacity={0.7} />
-          {/* Dashed white lane divider – lower roadway (at 80%) */}
-          <Line points={[0, h * 0.8, w, h * 0.8]} stroke="#ffffff" strokeWidth={2} dash={[20, 15]} opacity={0.7} />
-          {labelEl}
-        </Group>
-      );
-
-    case 'straight-road': {
-      const curve = el.curvature ?? 0;
-      if (Math.abs(curve) < 0.01) {
-        return (
-          <Group {...gp}>
-            <Rect width={w} height={h} fill="#475569" />
-            <Line points={[0, h / 2, w, h / 2]} stroke="#ffffff" strokeWidth={2} dash={[20, 15]} opacity={0.7} />
-            <Line points={[0, 0, w, 0]} stroke="#94a3b8" strokeWidth={1} />
-            <Line points={[0, h, w, h]} stroke="#94a3b8" strokeWidth={1} />
-            {labelEl}
-          </Group>
-        );
-      }
-      const midY = h / 2 - curve * w * 0.5;
-      return (
-        <Group {...gp}>
-          <Line points={[0, h / 2, w / 2, midY, w, h / 2]} stroke="#475569" strokeWidth={h} tension={0.5} lineCap="round" />
-          <Line points={[0, h / 2, w / 2, midY, w, h / 2]} stroke="#ffffff" strokeWidth={1.5} tension={0.5} dash={[20, 15]} opacity={0.7} />
+          <Line points={roadPts(-h / 2)} stroke="#94a3b8" strokeWidth={1.5} tension={t} />
+          <Line points={roadPts( h / 2)} stroke="#94a3b8" strokeWidth={1.5} tension={t} />
+          {/* Solid white median kerb lines */}
+          <Line points={roadPts(-medH)} stroke="#ffffff" strokeWidth={2.5} tension={t} />
+          <Line points={roadPts( medH)} stroke="#ffffff" strokeWidth={2.5} tension={t} />
+          {/* Dashed lane dividers (one per roadway) */}
+          <Line points={roadPts(-laneDiv)} stroke="#ffffff" strokeWidth={2} tension={t} dash={[20, 15]} opacity={0.7} />
+          <Line points={roadPts( laneDiv)} stroke="#ffffff" strokeWidth={2} tension={t} dash={[20, 15]} opacity={0.7} />
           {labelEl}
         </Group>
       );
