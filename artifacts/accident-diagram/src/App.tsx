@@ -187,6 +187,7 @@ export default function App() {
     pushHistory(next);
     setLabelCounts(prev => ({ ...prev, [activeTool]: count }));
     setSelectedId(el.id);
+    setActiveTool(null);
   }, [activeTool, elements, stagePos, zoom, pushHistory, labelCounts]);
 
   const handleWheel = useCallback((e: KonvaEventObject<WheelEvent>) => {
