@@ -161,6 +161,18 @@ export function renderElement({ el, onSelect, onChange }: RenderProps) {
       const defaultLanes = el.type === 'straight-road' ? 2 : 4;
       const lanes = el.lanes ?? defaultLanes;
 
+      if (lanes === 1) {
+        // 1-lane: no centre markings, just edge borders
+        return (
+          <Group {...gp}>
+            <Line points={roadPts(0)} stroke="#475569" strokeWidth={h} tension={t} lineCap="butt" />
+            <Line points={roadPts(-h / 2)} stroke="#94a3b8" strokeWidth={1.5} tension={t} />
+            <Line points={roadPts( h / 2)} stroke="#94a3b8" strokeWidth={1.5} tension={t} />
+            {labelEl}
+          </Group>
+        );
+      }
+
       if (lanes >= 4) {
         // 4-lane: double yellow centre line + one dashed divider each side
         return (

@@ -7,7 +7,7 @@ import jsPDF from 'jspdf';
 import { CanvasElement, CaseInfo, ELEMENT_DEFAULTS, PALETTE_CATEGORIES } from './lib/elements';
 import { renderElement } from './lib/renderElement';
 import { MapBackgroundModal } from './components/MapBackgroundModal';
-import { fetchRoadPolylines, snapToRoads } from './lib/roadSnap';
+import { fetchRoadPolylines, generateRoadElements } from './lib/roadSnap';
 
 const STAGE_W = 1100;
 const STAGE_H = 800;
@@ -65,10 +65,10 @@ export default function App() {
   const [showMapModal, setShowMapModal] = useState(false);
   const [mapCoords, setMapCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [mapZoom, setMapZoom] = useState<number | null>(null);
-  const [roadPolylines, setRoadPolylines] = useState<[number, number][][][]>([]);
-  const [snapEnabled, setSnapEnabled] = useState(false);
-  const [roadsLoading, setRoadsLoading] = useState(false);
+  const [roadsGenerating, setRoadsGenerating] = useState(false);
   const [roadsError, setRoadsError] = useState<string | null>(null);
+  // IDs of road elements auto-generated from the map (used to replace them on regenerate)
+  const [mapRoadIds, setMapRoadIds] = useState<Set<string>>(new Set());
 
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -170,6 +170,38 @@ export default function App() {
     });
     setSelectedId(null);
   }, [selectedId, pushHistory]);
+
+  // Core road-generation logic — shared by onApply and the Regenerate button.
+  // Fetches Overpass polylines, converts them to canvas elements, inserts them
+  // at the bottom of the element stack (behind vehicles/markers), and tracks
+  // their IDs so a subsequent regenerate can replace them cleanly.
+  const applyRoadElements = useCallback((lat: number, lng: number, zoom: number) => {
+    setRoadsGenerating(true);
+    setRoadsError(null);
+    fetchRoadPolylines(lat, lng, zoom, STAGE_W, STAGE_H)
+      .then(polys => {
+        if (polys.length === 0) { setRoadsError('No roads found in this area'); return; }
+        const newRoads = generateRoadElements(polys, nextId);
+        setElements(prev => {
+          // Remove any previously generated map roads, then prepend new ones
+          const withoutOld = prev.filter(el => !mapRoadIds.has(el.id));
+          const next = [...newRoads, ...withoutOld];
+          pushHistory(next);
+          return next;
+        });
+        setMapRoadIds(new Set(newRoads.map(e => e.id)));
+      })
+      .catch(err => {
+        console.error('[road-gen]', err);
+        setRoadsError('Could not load road data — check connection');
+      })
+      .finally(() => setRoadsGenerating(false));
+  }, [mapRoadIds, pushHistory]);
+
+  const regenerateRoads = useCallback(() => {
+    if (!mapCoords || !mapZoom) return;
+    applyRoadElements(mapCoords.lat, mapCoords.lng, mapZoom);
+  }, [mapCoords, mapZoom, applyRoadElements]);
 
   const handleStageClick = useCallback((e: KonvaEventObject<MouseEvent>) => {
     const target = e.target;
@@ -359,35 +391,11 @@ export default function App() {
         >
           <Map size={13} /> Map BG
         </button>
-        {mapDataUrl && (<>
-          <button
-            className={`toolbar-btn ${snapEnabled ? 'active' : ''}`}
-            onClick={() => setSnapEnabled(v => !v)}
-            title={
-              roadsLoading ? 'Loading road data…' :
-              roadsError ? roadsError :
-              roadPolylines.length === 0 ? 'No road data loaded' :
-              `Snap to roads (${roadPolylines.length} segments loaded)`
-            }
-            disabled={roadsLoading || roadPolylines.length === 0}
-            data-testid="btn-snap-roads"
-            style={
-              roadsError ? { color: '#ef4444', borderColor: '#ef4444' } :
-              snapEnabled ? { color: 'hsl(142,76%,55%)', borderColor: 'hsl(142,76%,36%)' } :
-              {}
-            }
-          >
-            {roadsLoading
-              ? <span style={{ fontSize: 10 }}>…</span>
-              : roadsError
-                ? <span style={{ fontSize: 11 }}>⚠</span>
-                : <span style={{ fontSize: 11 }}>⌖</span>
-            } Snap
-          </button>
-          <button className="toolbar-btn" onClick={() => { setMapDataUrl(null); setMapCoords(null); setMapZoom(null); setRoadPolylines([]); setSnapEnabled(false); }} title="Remove map background" data-testid="btn-remove-map" style={{ color: '#ef4444', padding: '5px 7px' }}>
+        {mapDataUrl && (
+          <button className="toolbar-btn" onClick={() => { setMapDataUrl(null); setMapCoords(null); setMapZoom(null); setMapRoadIds(new Set()); setRoadsError(null); }} title="Remove map background" data-testid="btn-remove-map" style={{ color: '#ef4444', padding: '5px 7px' }}>
             <X size={13} />
           </button>
-        </>)}
+        )}
         <div className="flex-1" />
         <button className="toolbar-btn" onClick={exportJpeg} data-testid="btn-export-jpeg">
           <ImageDown size={13} /> Export JPEG
@@ -479,20 +487,6 @@ export default function App() {
               {mapImage && (
                 <KonvaImage image={mapImage} x={0} y={0} width={STAGE_W} height={STAGE_H} opacity={mapOpacity} />
               )}
-              {/* Road overlay — shown when snap is enabled to confirm alignment */}
-              {snapEnabled && roadPolylines.map((poly, pi) =>
-                poly.length >= 2 && (
-                  <Line
-                    key={`road-${pi}`}
-                    points={poly.flat()}
-                    stroke="rgba(59,130,246,0.55)"
-                    strokeWidth={3}
-                    lineCap="round"
-                    lineJoin="round"
-                    listening={false}
-                  />
-                )
-              )}
               {/* Grid */}
               {showGrid && <GridLines w={STAGE_W} h={STAGE_H} />}
               {/* Subtle border */}
@@ -504,36 +498,6 @@ export default function App() {
                   isSelected: el.id === selectedId,
                   onSelect: () => setSelectedId(el.id),
                   onChange: (changes) => {
-                    // Snap dragged position to nearest road centerline
-                    if (
-                      snapEnabled &&
-                      roadPolylines.length > 0 &&
-                      (changes.x !== undefined || changes.y !== undefined)
-                    ) {
-                      const cx = (changes.x ?? el.x) + (changes.width ?? el.width) / 2;
-                      const cy = (changes.y ?? el.y) + (changes.height ?? el.height) / 2;
-                      const snapped = snapToRoads(cx, cy, roadPolylines, 48, zoom);
-                      if (snapped) {
-                        // Konva rotates a Group around its (x,y) origin (top-left), NOT its
-                        // visual center. If we naively place x=snap.x-w/2, y=snap.y-h/2 and
-                        // then apply a rotation θ, the visual center drifts away from the road.
-                        //
-                        // Correct formula: solve for (x,y) such that the local center
-                        // (w/2, h/2), after rotation θ around the group origin, lands at
-                        // (snapped.x, snapped.y) in parent space:
-                        //   snapped.x = x + (w/2)·cos θ − (h/2)·sin θ
-                        //   snapped.y = y + (w/2)·sin θ + (h/2)·cos θ
-                        const w = changes.width ?? el.width;
-                        const h = changes.height ?? el.height;
-                        const θ = snapped.rotation * (Math.PI / 180);
-                        changes = {
-                          ...changes,
-                          x: snapped.x - (w / 2) * Math.cos(θ) + (h / 2) * Math.sin(θ),
-                          y: snapped.y - (w / 2) * Math.sin(θ) - (h / 2) * Math.cos(θ),
-                          rotation: snapped.rotation,
-                        };
-                      }
-                    }
                     updateElement(el.id, changes);
                   },
                 });
@@ -574,14 +538,26 @@ export default function App() {
                   onChange={e => setMapOpacity(Number(e.target.value))}
                   style={{ width: '100%', accentColor: 'hsl(142,76%,36%)' }}
                   data-testid="map-opacity-slider" />
+                {roadsError && (
+                  <p style={{ margin: 0, fontSize: 11, color: '#f97316' }}>⚠ {roadsError}</p>
+                )}
                 <div className="flex gap-2">
                   <button className="toolbar-btn flex-1" style={{ fontSize: 11 }} onClick={() => setShowMapModal(true)} data-testid="btn-change-map">
                     Change Location
                   </button>
-                  <button className="toolbar-btn danger flex-1" style={{ fontSize: 11 }} onClick={() => { setMapDataUrl(null); setMapCoords(null); setMapZoom(null); setRoadPolylines([]); setSnapEnabled(false); setRoadsError(null); }} data-testid="btn-remove-map-panel">
-                    Remove
+                  <button
+                    className="toolbar-btn flex-1"
+                    style={{ fontSize: 11, ...(roadsGenerating ? { opacity: 0.6 } : {}) }}
+                    disabled={roadsGenerating}
+                    onClick={() => regenerateRoads()}
+                    data-testid="btn-regen-roads"
+                  >
+                    {roadsGenerating ? '…Generating' : '↺ Regenerate Roads'}
                   </button>
                 </div>
+                <button className="toolbar-btn danger w-full" style={{ fontSize: 11 }} onClick={() => { setMapDataUrl(null); setMapCoords(null); setMapZoom(null); setMapRoadIds(new Set()); setRoadsError(null); }} data-testid="btn-remove-map-panel">
+                  Remove Map
+                </button>
               </div>
             </div>
           )}
@@ -631,7 +607,7 @@ export default function App() {
                       <div>
                         <label className="prop-label">Lanes</label>
                         <div style={{ display: 'flex', gap: 6 }}>
-                          {[2, 4].map(n => {
+                          {[1, 2, 4].map(n => {
                             const defaultLanes = (selectedEl.type === 'straight-road') ? 2 : 4;
                             const active = (selectedEl.lanes ?? defaultLanes) === n;
                             return (
@@ -831,14 +807,8 @@ export default function App() {
             setMapCoords({ lat, lng });
             setMapZoom(zoom);
             setShowMapModal(false);
-            // Fetch road geometry for snap-to-road
-            setRoadsLoading(true);
-            setRoadPolylines([]);
-            setRoadsError(null);
-            fetchRoadPolylines(lat, lng, zoom, STAGE_W, STAGE_H)
-              .then(polys => { setRoadPolylines(polys); if (polys.length === 0) setRoadsError('No roads found in this area'); })
-              .catch((err) => { console.error('[road-snap]', err); setRoadsError('Could not load road data'); })
-              .finally(() => setRoadsLoading(false));
+            // Auto-generate road elements from OSM data
+            applyRoadElements(lat, lng, zoom);
           }}
           canvasWidth={STAGE_W}
           canvasHeight={STAGE_H}

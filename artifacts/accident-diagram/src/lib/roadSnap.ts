@@ -1,3 +1,5 @@
+import type { CanvasElement } from './elements';
+
 const TILE_PX = 256;
 
 function lon2px(lon: number, zoom: number): number {
@@ -62,6 +64,70 @@ export async function fetchRoadPolylines(
         lat2px(node.lat, zoom) - topLeftPy,
       ] as [number, number]),
     );
+}
+
+/**
+ * Convert OSM road polylines (already in canvas-pixel coordinates) into
+ * `straight-road` canvas elements.  One element is produced per road way
+ * (polyline), spanning start → end with curvature approximated from the
+ * midpoint perpendicular deviation.
+ *
+ * @param makeId  ID factory (pass the app's `nextId()` function)
+ */
+export function generateRoadElements(
+  polylines: [number, number][][],
+  makeId: () => string,
+): CanvasElement[] {
+  const results: CanvasElement[] = [];
+
+  for (const poly of polylines) {
+    if (poly.length < 2) continue;
+
+    const [x0, y0] = poly[0];
+    const [x1, y1] = poly[poly.length - 1];
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const len = Math.hypot(dx, dy);
+    if (len < 20) continue; // too short to be worth drawing
+
+    const rotation = Math.atan2(dy, dx) * (180 / Math.PI);
+
+    // Perpendicular deviation of the way's midpoint from the straight line
+    const midIdx = Math.floor(poly.length / 2);
+    const [mx, my] = poly[midIdx];
+    const nx = -dy / len; // unit normal
+    const ny =  dx / len;
+    const d = (mx - (x0 + x1) / 2) * nx + (my - (y0 + y1) / 2) * ny;
+    // Convert to our curvature parameter: midpoint offset = curvature * w * 0.5
+    const curvature = Math.max(-0.8, Math.min(0.8, -2 * d / len));
+
+    const w = len;
+    const h = 60; // default 2-lane road height
+
+    // Back-calculate top-left (x,y) so the rotated element's visual centre
+    // sits at the midpoint of the start→end line.
+    const cx = (x0 + x1) / 2;
+    const cy = (y0 + y1) / 2;
+    const θ = rotation * Math.PI / 180;
+    const x = cx - (w / 2) * Math.cos(θ) + (h / 2) * Math.sin(θ);
+    const y = cy - (w / 2) * Math.sin(θ) - (h / 2) * Math.cos(θ);
+
+    results.push({
+      id: makeId(),
+      type: 'straight-road',
+      x, y,
+      width: w,
+      height: h,
+      rotation,
+      curvature: Math.abs(curvature) < 0.04 ? 0 : curvature,
+      fill: '#475569',
+      opacity: 0.85,
+      label: '',
+      lanes: 2,
+    });
+  }
+
+  return results;
 }
 
 /**
