@@ -512,12 +512,24 @@ export default function App() {
                     ) {
                       const cx = (changes.x ?? el.x) + (changes.width ?? el.width) / 2;
                       const cy = (changes.y ?? el.y) + (changes.height ?? el.height) / 2;
-                      const snapped = snapToRoads(cx, cy, roadPolylines, 24, zoom);
+                      const snapped = snapToRoads(cx, cy, roadPolylines, 48, zoom);
                       if (snapped) {
+                        // Konva rotates a Group around its (x,y) origin (top-left), NOT its
+                        // visual center. If we naively place x=snap.x-w/2, y=snap.y-h/2 and
+                        // then apply a rotation θ, the visual center drifts away from the road.
+                        //
+                        // Correct formula: solve for (x,y) such that the local center
+                        // (w/2, h/2), after rotation θ around the group origin, lands at
+                        // (snapped.x, snapped.y) in parent space:
+                        //   snapped.x = x + (w/2)·cos θ − (h/2)·sin θ
+                        //   snapped.y = y + (w/2)·sin θ + (h/2)·cos θ
+                        const w = changes.width ?? el.width;
+                        const h = changes.height ?? el.height;
+                        const θ = snapped.rotation * (Math.PI / 180);
                         changes = {
                           ...changes,
-                          x: snapped.x - (changes.width ?? el.width) / 2,
-                          y: snapped.y - (changes.height ?? el.height) / 2,
+                          x: snapped.x - (w / 2) * Math.cos(θ) + (h / 2) * Math.sin(θ),
+                          y: snapped.y - (w / 2) * Math.sin(θ) - (h / 2) * Math.cos(θ),
                           rotation: snapped.rotation,
                         };
                       }
