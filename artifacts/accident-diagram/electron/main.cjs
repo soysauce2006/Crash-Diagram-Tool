@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, session } = require('electron');
 const path = require('path');
 const https = require('https');
 
@@ -89,6 +89,21 @@ ipcMain.handle('overpass', async (_event, query) => {
 // App lifecycle
 // ---------------------------------------------------------------------------
 app.whenReady().then(() => {
+  // Patch headers for OSM tile/Nominatim requests so tile.openstreetmap.org
+  // doesn't reject them with 403 (it blocks file:// referers).
+  const OSM_FILTER = {
+    urls: [
+      'https://tile.openstreetmap.org/*',
+      'https://nominatim.openstreetmap.org/*',
+    ],
+  };
+  session.defaultSession.webRequest.onBeforeSendHeaders(OSM_FILTER, (details, callback) => {
+    const headers = { ...details.requestHeaders };
+    headers['Referer'] = 'https://www.openstreetmap.org/';
+    headers['User-Agent'] = 'CrashSceneDiagramTool/1.0 (accident reconstruction; contact: support@example.com)';
+    callback({ requestHeaders: headers });
+  });
+
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
