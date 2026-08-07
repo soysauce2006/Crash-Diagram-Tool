@@ -35,7 +35,7 @@ router.get("/tiles/:z/:x/:y", async (req, res) => {
     const buf = Buffer.from(await upstream.arrayBuffer());
     res
       .set("Content-Type", "image/png")
-      .set("Cache-Control", "public, max-age=86400") // tiles are stable; cache 24 h
+      .set("Cache-Control", "public, max-age=86400")
       .send(buf);
   } catch (err) {
     res.status(502).send(`Tile fetch failed: ${String(err)}`);

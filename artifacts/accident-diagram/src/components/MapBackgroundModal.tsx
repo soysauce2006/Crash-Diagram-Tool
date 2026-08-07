@@ -5,16 +5,17 @@ import 'leaflet/dist/leaflet.css';
 
 const TILE_SIZE = 256;
 
-// Electron: use tile:// custom protocol (main process fetches, no CORS/Referer issues).
-// Browser: proxy through the local API server to avoid OSM rate-limiting Replit IPs.
+// Electron: tile:// custom protocol — Node.js fetches tiles with no CORS/Referer issues.
+// Browser: proxy through the local API server at /api/tiles/... — avoids OSM blocking
+//          Replit's shared egress IPs when the browser hits OSM directly.
 const isElectron = typeof window !== 'undefined' && 'electronAPI' in window;
 function tileUrl(z: number, x: number, y: number): string {
   if (isElectron) return `tile://${z}/${x}/${y}.png`;
-  return `${import.meta.env.BASE_URL}api/tiles/${z}/${x}/${y}.png`;
+  return `/api/tiles/${z}/${x}/${y}.png`;
 }
 function leafletTileUrl(): string {
   if (isElectron) return 'tile://{z}/{x}/{y}.png';
-  return `${import.meta.env.BASE_URL}api/tiles/{z}/{x}/{y}.png`;
+  return '/api/tiles/{z}/{x}/{y}.png';
 }
 
 function lon2tileFrac(lon: number, zoom: number): number {
@@ -138,16 +139,13 @@ export function MapBackgroundModal({ onClose, onApply, canvasWidth, canvasHeight
     setGeocoding(true);
     setError('');
     try {
-      // In Electron, geocode via IPC so the request goes through Node.js
-      // (no CORS / Referer restrictions). In the browser, fetch directly.
+      // Electron: geocode via IPC so Node.js makes the request (no CORS issues).
+      // Browser: proxy through the local API server — avoids OSM blocking Replit IPs.
       let data: Array<{ lat: string; lon: string; display_name: string }>;
       if (isElectron && (window as any).electronAPI?.nominatimSearch) {
         data = await (window as any).electronAPI.nominatimSearch(address);
       } else {
-        const resp = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
-          { headers: { 'Accept-Language': 'en-US,en' } }
-        );
+        const resp = await fetch(`/api/nominatim?q=${encodeURIComponent(address)}`);
         data = await resp.json();
       }
       if (!data.length) { setError('Address not found. Try a more specific address.'); return; }
