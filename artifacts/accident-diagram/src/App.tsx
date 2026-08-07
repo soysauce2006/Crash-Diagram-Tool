@@ -6,6 +6,7 @@ import { Shield, Undo2, Redo2, ZoomIn, ZoomOut, Grid3X3, Trash2, FileDown, Image
 import jsPDF from 'jspdf';
 import { CanvasElement, CaseInfo, ELEMENT_DEFAULTS, PALETTE_CATEGORIES } from './lib/elements';
 import { renderElement } from './lib/renderElement';
+import { UpdateProgressBanner } from './components/UpdateProgressBanner';
 
 const STAGE_W = 1100;
 const STAGE_H = 800;
@@ -654,6 +655,7 @@ export default function App() {
         </aside>
       </div>
 
+      <UpdateProgressBanner />
     </div>
   );
 }

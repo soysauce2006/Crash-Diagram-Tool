@@ -21,6 +21,20 @@ const PORT   = Number(process.env.PORT) || 3000;
 const PUBLIC = path.join(__dirname, 'public');
 
 // ---------------------------------------------------------------------------
+// OSM tile proxy — avoids rate-limiting when browser hits OSM directly
+// ---------------------------------------------------------------------------
+app.get('/api/tiles/:z/:x/:y', async (req, res) => {
+    console.error('[overpass]', msg);
+    res.status(502).json({ error: `All Overpass endpoints failed: ${msg}` });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// OSM tile proxy — avoids rate-limiting when the browser hits OSM directly
+// ---------------------------------------------------------------------------
+app.get('/api/tiles/:z/:x/:y', async (req, res) => {
+
+// ---------------------------------------------------------------------------
 // Static frontend + SPA fallback
 // ---------------------------------------------------------------------------
 app.use(express.static(PUBLIC));
