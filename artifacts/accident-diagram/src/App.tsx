@@ -1,13 +1,11 @@
 import { useState, useRef, useEffect, useCallback, cloneElement } from 'react';
-import { Stage, Layer, Rect, Line, Transformer, Image as KonvaImage } from 'react-konva';
+import { Stage, Layer, Rect, Line, Transformer } from 'react-konva';
 import type Konva from 'konva';
 import { KonvaEventObject } from 'konva/lib/Node';
-import { Shield, Undo2, Redo2, ZoomIn, ZoomOut, Grid3X3, Trash2, FileDown, ImageDown, ChevronDown, ChevronRight, Map, X } from 'lucide-react';
+import { Shield, Undo2, Redo2, ZoomIn, ZoomOut, Grid3X3, Trash2, FileDown, ImageDown, ChevronDown, ChevronRight } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { CanvasElement, CaseInfo, ELEMENT_DEFAULTS, PALETTE_CATEGORIES } from './lib/elements';
 import { renderElement } from './lib/renderElement';
-import { MapBackgroundModal } from './components/MapBackgroundModal';
-import { fetchRoadPolylines, generateRoadElements } from './lib/roadSnap';
 
 const STAGE_W = 1100;
 const STAGE_H = 800;
@@ -59,28 +57,9 @@ export default function App() {
     weather: 'Clear', roadCondition: 'Dry', notes: '',
   });
 
-  const [mapDataUrl, setMapDataUrl] = useState<string | null>(null);
-  const [mapImage, setMapImage] = useState<HTMLImageElement | null>(null);
-  const [mapOpacity, setMapOpacity] = useState(0.55);
-  const [showMapModal, setShowMapModal] = useState(false);
-  const [mapCoords, setMapCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [mapZoom, setMapZoom] = useState<number | null>(null);
-  const [roadsGenerating, setRoadsGenerating] = useState(false);
-  const [roadsError, setRoadsError] = useState<string | null>(null);
-  // IDs of road elements auto-generated from the map (used to replace them on regenerate)
-  const [mapRoadIds, setMapRoadIds] = useState<Set<string>>(new Set());
-
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Load map data URL into a DOM Image for Konva
-  useEffect(() => {
-    if (!mapDataUrl) { setMapImage(null); return; }
-    const img = new window.Image();
-    img.onload = () => setMapImage(img);
-    img.src = mapDataUrl;
-  }, [mapDataUrl]);
 
   // Sync transformer to selected node
   useEffect(() => {
@@ -170,38 +149,6 @@ export default function App() {
     });
     setSelectedId(null);
   }, [selectedId, pushHistory]);
-
-  // Core road-generation logic — shared by onApply and the Regenerate button.
-  // Fetches Overpass polylines, converts them to canvas elements, inserts them
-  // at the bottom of the element stack (behind vehicles/markers), and tracks
-  // their IDs so a subsequent regenerate can replace them cleanly.
-  const applyRoadElements = useCallback((lat: number, lng: number, zoom: number) => {
-    setRoadsGenerating(true);
-    setRoadsError(null);
-    fetchRoadPolylines(lat, lng, zoom, STAGE_W, STAGE_H)
-      .then(polys => {
-        if (polys.length === 0) { setRoadsError('No roads found in this area'); return; }
-        const newRoads = generateRoadElements(polys, nextId);
-        setElements(prev => {
-          // Remove any previously generated map roads, then prepend new ones
-          const withoutOld = prev.filter(el => !mapRoadIds.has(el.id));
-          const next = [...newRoads, ...withoutOld];
-          pushHistory(next);
-          return next;
-        });
-        setMapRoadIds(new Set(newRoads.map(e => e.id)));
-      })
-      .catch(err => {
-        console.error('[road-gen]', err);
-        setRoadsError('Could not load road data — check connection');
-      })
-      .finally(() => setRoadsGenerating(false));
-  }, [mapRoadIds, pushHistory]);
-
-  const regenerateRoads = useCallback(() => {
-    if (!mapCoords || !mapZoom) return;
-    applyRoadElements(mapCoords.lat, mapCoords.lng, mapZoom);
-  }, [mapCoords, mapZoom, applyRoadElements]);
 
   const handleStageClick = useCallback((e: KonvaEventObject<MouseEvent>) => {
     const target = e.target;
@@ -381,21 +328,6 @@ export default function App() {
         <button className="toolbar-btn danger" onClick={clearCanvas} title="Clear canvas" data-testid="btn-clear">
           <Trash2 size={13} /> Clear
         </button>
-        <div className="w-px h-6 mx-1" style={{ background: 'hsl(215,25%,22%)' }} />
-        <button
-          className="toolbar-btn"
-          onClick={() => setShowMapModal(true)}
-          title="Set map background from address"
-          data-testid="btn-map-background"
-          style={mapDataUrl ? { color: 'hsl(142,76%,55%)', borderColor: 'hsl(142,76%,36%)' } : {}}
-        >
-          <Map size={13} /> Map BG
-        </button>
-        {mapDataUrl && (
-          <button className="toolbar-btn" onClick={() => { setMapDataUrl(null); setMapCoords(null); setMapZoom(null); setMapRoadIds(new Set()); setRoadsError(null); }} title="Remove map background" data-testid="btn-remove-map" style={{ color: '#ef4444', padding: '5px 7px' }}>
-            <X size={13} />
-          </button>
-        )}
         <div className="flex-1" />
         <button className="toolbar-btn" onClick={exportJpeg} data-testid="btn-export-jpeg">
           <ImageDown size={13} /> Export JPEG
@@ -483,10 +415,6 @@ export default function App() {
                 shadowOffsetX={2}
                 shadowOffsetY={2}
               />
-              {/* Map background image */}
-              {mapImage && (
-                <KonvaImage image={mapImage} x={0} y={0} width={STAGE_W} height={STAGE_H} opacity={mapOpacity} />
-              )}
               {/* Grid */}
               {showGrid && <GridLines w={STAGE_W} h={STAGE_H} />}
               {/* Subtle border */}
@@ -525,42 +453,6 @@ export default function App() {
         {/* RIGHT PANEL */}
         <aside style={{ width: 280, background: 'hsl(215,28%,9%)', borderLeft: '1px solid hsl(215,25%,18%)' }}
           className="flex flex-col overflow-y-auto flex-shrink-0">
-
-          {/* Map Background Controls */}
-          {mapDataUrl && (
-            <div style={{ borderBottom: '1px solid hsl(215,25%,16%)' }}>
-              <div className="px-3 py-2" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'hsl(142,76%,45%)', borderBottom: '1px solid hsl(215,25%,15%)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Map size={11} /> Map Background
-              </div>
-              <div className="p-3 flex flex-col gap-2">
-                <label className="prop-label">Opacity ({Math.round(mapOpacity * 100)}%)</label>
-                <input type="range" min={0.1} max={1} step={0.05} value={mapOpacity}
-                  onChange={e => setMapOpacity(Number(e.target.value))}
-                  style={{ width: '100%', accentColor: 'hsl(142,76%,36%)' }}
-                  data-testid="map-opacity-slider" />
-                {roadsError && (
-                  <p style={{ margin: 0, fontSize: 11, color: '#f97316' }}>⚠ {roadsError}</p>
-                )}
-                <div className="flex gap-2">
-                  <button className="toolbar-btn flex-1" style={{ fontSize: 11 }} onClick={() => setShowMapModal(true)} data-testid="btn-change-map">
-                    Change Location
-                  </button>
-                  <button
-                    className="toolbar-btn flex-1"
-                    style={{ fontSize: 11, ...(roadsGenerating ? { opacity: 0.6 } : {}) }}
-                    disabled={roadsGenerating}
-                    onClick={() => regenerateRoads()}
-                    data-testid="btn-regen-roads"
-                  >
-                    {roadsGenerating ? '…Generating' : '↺ Regenerate Roads'}
-                  </button>
-                </div>
-                <button className="toolbar-btn danger w-full" style={{ fontSize: 11 }} onClick={() => { setMapDataUrl(null); setMapCoords(null); setMapZoom(null); setMapRoadIds(new Set()); setRoadsError(null); }} data-testid="btn-remove-map-panel">
-                  Remove Map
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Properties Panel */}
           <div style={{ borderBottom: '1px solid hsl(215,25%,16%)' }}>
@@ -759,61 +651,9 @@ export default function App() {
             </div>
           </div>
 
-          {/* Collision Coordinates – shown only when a map background is active */}
-          {mapCoords && (
-            <div>
-              <div className="px-3 py-2" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'hsl(215,20%,45%)', borderBottom: '1px solid hsl(215,25%,15%)', borderTop: '1px solid hsl(215,25%,15%)' }}>
-                Collision Coordinates
-              </div>
-              <div className="p-3 flex flex-col gap-2">
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="prop-label">Latitude</label>
-                    <input
-                      type="text"
-                      className="prop-input"
-                      readOnly
-                      value={mapCoords.lat.toFixed(6)}
-                      style={{ fontFamily: 'monospace', cursor: 'default' }}
-                      data-testid="coord-lat"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="prop-label">Longitude</label>
-                    <input
-                      type="text"
-                      className="prop-input"
-                      readOnly
-                      value={mapCoords.lng.toFixed(6)}
-                      style={{ fontFamily: 'monospace', cursor: 'default' }}
-                      data-testid="coord-lng"
-                    />
-                  </div>
-                </div>
-                <p style={{ fontSize: 10, color: 'hsl(215,20%,50%)', margin: 0, lineHeight: 1.4 }}>
-                  Center of the applied map background. Re-apply the map after panning to update.
-                </p>
-              </div>
-            </div>
-          )}
         </aside>
       </div>
 
-      {showMapModal && (
-        <MapBackgroundModal
-          onClose={() => setShowMapModal(false)}
-          onApply={(dataUrl, lat, lng, zoom: number) => {
-            setMapDataUrl(dataUrl);
-            setMapCoords({ lat, lng });
-            setMapZoom(zoom);
-            setShowMapModal(false);
-            // Auto-generate road elements from OSM data
-            applyRoadElements(lat, lng, zoom);
-          }}
-          canvasWidth={STAGE_W}
-          canvasHeight={STAGE_H}
-        />
-      )}
     </div>
   );
 }

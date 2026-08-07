@@ -1,12 +1,7 @@
 'use strict';
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge } = require('electron');
 
-// Expose a safe, narrow API to the renderer (no full Node/Electron access).
-contextBridge.exposeInMainWorld('electronAPI', {
-  /** Call the Overpass API through the main process (bypasses CORS). */
-  overpass: (query) => ipcRenderer.invoke('overpass', query),
-
-  /** Geocode an address via Nominatim through the main process (bypasses CORS/Referer). */
-  nominatimSearch: (address) => ipcRenderer.invoke('nominatim-search', address),
-});
+// No IPC APIs are currently exposed to the renderer.
+// Keep this file as a placeholder so webPreferences.preload continues to work.
+contextBridge.exposeInMainWorld('electronAPI', {});
