@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build:electron": "vite build --config vite.electron.config.ts",
     "electron:dev": "ELECTRON_DEV=1 DEV_PORT=5173 electron .",
-    "electron:build": "electron-builder --win --x64"
+    "electron:build": "electron-builder --win --x64 --publish never"
   },
   "build": {
     "appId": "com.crashdiagram.app",
