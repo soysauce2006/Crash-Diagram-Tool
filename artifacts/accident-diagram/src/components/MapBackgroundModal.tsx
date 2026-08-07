@@ -5,19 +5,16 @@ import 'leaflet/dist/leaflet.css';
 
 const TILE_SIZE = 256;
 
-// In the Electron desktop app, use the tile:// custom protocol so all tile
-// fetches go through the main process (Node.js) where there are no CORS or
-// Referer restrictions. In the browser, use the normal OSM HTTPS URL.
+// Electron: use tile:// custom protocol (main process fetches, no CORS/Referer issues).
+// Browser: proxy through the local API server to avoid OSM rate-limiting Replit IPs.
 const isElectron = typeof window !== 'undefined' && 'electronAPI' in window;
 function tileUrl(z: number, x: number, y: number): string {
-  return isElectron
-    ? `tile://${z}/${x}/${y}.png`
-    : `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+  if (isElectron) return `tile://${z}/${x}/${y}.png`;
+  return `${import.meta.env.BASE_URL}api/tiles/${z}/${x}/${y}.png`;
 }
 function leafletTileUrl(): string {
-  return isElectron
-    ? 'tile://{z}/{x}/{y}.png'
-    : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  if (isElectron) return 'tile://{z}/{x}/{y}.png';
+  return `${import.meta.env.BASE_URL}api/tiles/{z}/{x}/{y}.png`;
 }
 
 function lon2tileFrac(lon: number, zoom: number): number {
