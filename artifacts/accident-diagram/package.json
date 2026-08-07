@@ -39,7 +39,7 @@
             "x64"
           ]
         }
-      ],
+      ]
     },
     "nsis": {
       "oneClick": false,
