@@ -6,36 +6,52 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
-
+  # Step 1 — Build the Vite bundle on Linux where Rollup is reliable
+  build-vite:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 10
-
-      - name: Set up Node.js 24
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install
-
+      - run: pnpm install --frozen-lockfile
       - name: Build Vite app (Electron target)
         working-directory: artifacts/accident-diagram
         run: pnpm run build:electron
+      - name: Upload Vite build
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-vite-build
+          path: artifacts/accident-diagram/dist/electron-app/
 
+  # Step 2 — Package the installer on Windows (electron-builder, no Rollup needed)
+  package-windows:
+    needs: build-vite
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download Vite build
+        uses: actions/download-artifact@v4
+        with:
+          name: electron-vite-build
+          path: artifacts/accident-diagram/dist/electron-app/
       - name: Package Electron app for Windows
         working-directory: artifacts/accident-diagram
         run: pnpm run electron:build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
