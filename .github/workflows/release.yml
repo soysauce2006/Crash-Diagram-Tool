@@ -1,0 +1,182 @@
+name: Publish GitHub Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # Step 0 — Verify package.json version matches the pushed tag
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify package.json version matches tag
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          TAG_VERSION="${TAG_NAME#v}"
+          FAILED=0
+
+          PKG_VERSION=$(node -p "require('./artifacts/accident-diagram/package.json').version")
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "❌ Version mismatch: artifacts/accident-diagram/package.json has '$PKG_VERSION' but tag is 'v$TAG_VERSION'"
+            echo ""
+            echo "Before tagging, update the version field in artifacts/accident-diagram/package.json:"
+            echo "  \"version\": \"$TAG_VERSION\""
+            FAILED=1
+          else
+            echo "✅ artifacts/accident-diagram/package.json: $PKG_VERSION"
+          fi
+
+          if [ "$FAILED" = "1" ]; then
+            echo ""
+            echo "See CONTRIBUTING.md for the full release process."
+            exit 1
+          fi
+
+  # Step 1 — Build the Vite bundle on Linux where Rollup native binaries are reliable
+  build-vite:
+    needs: check-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build Vite app (Electron target)
+        working-directory: artifacts/accident-diagram
+        run: pnpm run build:electron
+      - name: Upload Vite build
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-vite-build
+          path: artifacts/accident-diagram/dist/electron-app/
+
+  # Step 2 — Package the Windows installer (electron-builder requires Windows)
+  build-windows:
+    needs: [check-version, build-vite]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download Vite build
+        uses: actions/download-artifact@v4
+        with:
+          name: electron-vite-build
+          path: artifacts/accident-diagram/dist/electron-app/
+      - name: Derive version from tag
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          echo "APP_VERSION=${TAG_NAME#v}" >> $GITHUB_ENV
+      - name: Package Electron app for Windows
+        working-directory: artifacts/accident-diagram
+        shell: bash
+        run: pnpm run electron:build -- --config.extraMetadata.version="$APP_VERSION"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+      - name: Upload Windows installer and update manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-exe
+          path: |
+            artifacts/accident-diagram/dist/electron-dist/*.exe
+            artifacts/accident-diagram/dist/electron-dist/latest.yml
+          if-no-files-found: error
+
+  # Step 3 — Build the webapp zip
+  build-webapp:
+    needs: check-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build Vite app (webapp target)
+        working-directory: artifacts/accident-diagram
+        run: pnpm exec vite build --config vite.webapp.config.ts
+      - name: Derive version from tag
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: echo "APP_VERSION=${TAG_NAME#v}" >> $GITHUB_ENV
+      - name: Assemble package directory
+        run: |
+          mkdir -p dist/crash-diagram-webapp/public
+          cp -r artifacts/accident-diagram/dist/webapp/. dist/crash-diagram-webapp/public/
+          cp artifacts/accident-diagram/server.js           dist/crash-diagram-webapp/server.js
+          cp artifacts/accident-diagram/webapp-package.json dist/crash-diagram-webapp/package.json
+          cp artifacts/accident-diagram/webapp-README.md    dist/crash-diagram-webapp/README.md
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('dist/crash-diagram-webapp/package.json', 'utf8'));
+            pkg.version = process.env.APP_VERSION;
+            fs.writeFileSync('dist/crash-diagram-webapp/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "✅ Stamped version $APP_VERSION into dist/crash-diagram-webapp/package.json"
+      - name: Create zip archive
+        run: cd dist && zip -r crash-diagram-webapp.zip crash-diagram-webapp/
+      - name: Upload webapp zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-webapp-zip
+          path: dist/crash-diagram-webapp.zip
+          if-no-files-found: error
+
+  # Step 4 — Create the GitHub Release and attach both assets
+  publish-release:
+    needs: [build-windows, build-webapp]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows installer
+        uses: actions/download-artifact@v4
+        with:
+          name: release-windows-exe
+          path: release-assets/
+      - name: Download webapp zip
+        uses: actions/download-artifact@v4
+        with:
+          name: release-webapp-zip
+          path: release-assets/
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Crash Scene Diagram Tool ${{ github.ref_name }}
+          body: |
+            ## Downloads
+
+            | Package | Description |
+            |---------|-------------|
+            | `*.exe` | Windows installer — run it to install the desktop app |
+            | `crash-diagram-webapp.zip` | Self-hosted web server — unzip and run `npm install && npm start` |
+
+            > **Windows SmartScreen**: unsigned builds will show a warning. Click **More info → Run anyway** to proceed.
+
+            See the [README](https://github.com/${{ github.repository }}/blob/main/README.md) for full setup instructions.
+          files: release-assets/*
+          fail_on_unmatched_files: true
