@@ -194,7 +194,7 @@ app.whenReady().then(() => {
       if (wasManual) {
         dialog.showMessageBox({
           type: 'info',
-          title: 'You're Up to Date',
+          title: "You're Up to Date",
           message: `You're running the latest version (${info.version}).`,
           buttons: ['OK'],
           defaultId: 0,
