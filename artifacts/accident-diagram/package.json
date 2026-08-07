@@ -16,6 +16,7 @@
   "build": {
     "appId": "com.crashdiagram.app",
     "productName": "Crash Scene Diagram Tool",
+    "publish": null,
     "asar": true,
     "directories": {
       "output": "dist/electron-dist",
