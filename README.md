@@ -2,7 +2,7 @@
 
 A desktop and browser-based accident reconstruction diagram tool for law enforcement, investigators, and insurance professionals. Draw crash scenes with roads, vehicles, measurements, and annotations — then export to JPEG or PDF.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue) ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Web-blue) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-1.1.0-blue) ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Web-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
