@@ -1,41 +1,41 @@
 # Crash Scene Diagram Tool
 
-A desktop and browser-based accident reconstruction diagram tool for law enforcement, investigators, and insurance professionals. Draw crash scenes with roads, vehicles, measurements, and annotations — then export to PNG or PDF.
+A desktop and browser-based accident reconstruction diagram tool for law enforcement, investigators, and insurance professionals. Draw crash scenes with roads, vehicles, measurements, and annotations — then export to JPEG or PDF.
 
-![Crash Scene Diagram Tool](https://img.shields.io/badge/platform-Windows%20%7C%20Web-blue) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-1.0.0-blue) ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Web-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
 ## Features
 
 - **Drag-and-drop canvas** — place vehicles, road elements, skid marks, pedestrians, and more
-- **Map backgrounds** — search any address and stitch live OpenStreetMap tiles onto the canvas
-- **Auto road generation** — roads are automatically drawn from OSM data when a map is applied
-- **Measurements** — add dimension lines with real-world units
-- **Undo / redo** — full history stack
-- **Export** — save diagrams as PNG or PDF
+- **Road elements** — straight roads, highways, curves, intersections, crosswalks, lane dividers, and medians
+- **Accident markers** — point of impact, skid marks, debris, measurements, and text labels
+- **Element properties** — adjust size, rotation, fill color, opacity, and lane count per element
+- **Undo / redo** — full history stack (Ctrl+Z / Ctrl+Shift+Z)
+- **Keyboard shortcuts** — Delete to remove, Ctrl+D to duplicate, Escape to cancel
+- **Case information** — attach case number, date/time, officer, weather, road conditions, and notes
+- **Export** — save diagrams as JPEG or PDF with case header baked in
 - **Two deployment modes** — Windows `.exe` desktop app or self-hosted web server
 
 ---
 
 ## Downloads
 
-Pre-built releases are produced by GitHub Actions on every push to `main`.
-
 | Package | How to get it |
 |---------|---------------|
-| **Windows installer** (`.exe`) | Actions → `Build Electron (Windows)` → Artifacts |
-| **Web server zip** | Actions → `Build Web App` → Artifacts |
+| **Windows installer** (`.exe`) | [Releases](../../releases) → latest release → Assets |
+| **Web server zip** | [Releases](../../releases) → latest release → Assets |
 
-> Stable releases will appear under [Releases](../../releases) once tagged.
+Releases are published automatically when a `v*` tag is pushed (e.g. `v1.0.0`). Each release contains both the Windows installer and the self-hosted web server package.
 
 ---
 
 ## Running the Windows App
 
-1. Download `Crash Scene Diagram Tool Setup x.x.x.exe` from the Actions artifacts.
+1. Download `Crash Scene Diagram Tool Setup x.x.x.exe` from the latest release.
 2. Run the installer — Windows may show a SmartScreen warning for unsigned builds; click **More info → Run anyway**.
-3. The app opens directly. No internet account required; map tiles load over HTTPS.
+3. The app opens directly. No internet connection or account required.
 
 ---
 
@@ -145,13 +145,11 @@ artifacts/
     electron/             # Electron main process + preload
     src/
       components/         # UI components (toolbar, panels, modals)
-      lib/                # Road generation, rendering, utilities
-  api-server/             # Express proxy for Overpass API (browser mode)
+      lib/                # Element definitions, rendering, utilities
+  api-server/             # Express API server (health check)
 ```
 
-**Map tiles** are fetched directly from `tile.openstreetmap.org`. In the Electron app, a `webRequest` interceptor injects a valid `Referer` header to satisfy OSM's tile policy.
-
-**Road data** comes from the [Overpass API](https://overpass-api.de/). Three mirrors are raced in parallel (`z.overpass-api.de`, `overpass-api.de`, `overpass.kumi.systems`) and the first successful response wins. In Electron this runs in the main process (no CORS); in the browser it goes through the bundled Express proxy.
+The frontend is a single-page React app using [Konva](https://konvajs.org/) for the canvas. Elements are plain data objects — no external services are required at runtime.
 
 ---
 
@@ -160,9 +158,11 @@ artifacts/
 | Workflow | Trigger | Runner | Output |
 |----------|---------|--------|--------|
 | `build-electron.yml` | push to `main` | Ubuntu (Vite) → Windows (electron-builder) | `Crash Scene Diagram Tool Setup x.x.x.exe` |
-| `build-webapp.yml` | push to `main` | Ubuntu | `crash-diagram-webapp.zip` |
+| `release.yml` | push of `v*` tag | Ubuntu + Windows | GitHub Release with installer + webapp zip |
 
 The Electron workflow uses a two-job structure: Vite builds on Ubuntu (where Rollup native binaries are available), uploads the artifact, then the Windows job downloads it and runs electron-builder.
+
+The Windows job reads `WIN_CSC_LINK` (Base64-encoded PFX) and `WIN_CSC_KEY_PASSWORD` from GitHub Actions secrets to sign the installer. If the secrets are absent the build still succeeds but the installer is unsigned.
 
 ---
 
@@ -170,16 +170,13 @@ The Electron workflow uses a two-job structure: Vite builds on Ubuntu (where Rol
 
 | Symptom | Fix |
 |---------|-----|
-| Map shows 403 / tiles don't load (desktop) | Rebuild with the latest release — the Electron `webRequest` header fix is required |
-| "Could not load road data" | The app needs outbound HTTPS to `overpass-api.de`. Check firewall / VPN |
-| Port already in use (web server) | `PORT=8081 npm start` |
 | SmartScreen blocks installer | Click **More info → Run anyway** (build is unsigned) |
+| Port already in use (web server) | `PORT=8081 npm start` |
 | Page not found after Nginx setup | Ensure `proxy_pass` URL ends with `/` |
+| Auto-updater prompt doesn't appear | Push a new `v*` tag — the updater only fires when a newer GitHub Release exists |
 
 ---
 
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
-
-Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), available under the [ODbL](https://opendatacommons.org/licenses/odbl/).
