@@ -39,9 +39,6 @@
           ]
         }
       ],
-      "signingHashAlgorithms": [
-        "sha256"
-      ]
     },
     "nsis": {
       "oneClick": false,
