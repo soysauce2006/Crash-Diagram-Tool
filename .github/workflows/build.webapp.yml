@@ -1,0 +1,50 @@
+name: Build Web Server Package (.zip)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-webapp:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Vite app (webapp target)
+        working-directory: artifacts/accident-diagram
+        run: pnpm exec vite build --config vite.webapp.config.ts
+
+      - name: Assemble package directory
+        run: |
+          mkdir -p dist/crash-diagram-webapp/public
+          cp -r artifacts/accident-diagram/dist/webapp/. dist/crash-diagram-webapp/public/
+          cp artifacts/accident-diagram/server.js           dist/crash-diagram-webapp/server.js
+          cp artifacts/accident-diagram/webapp-package.json dist/crash-diagram-webapp/package.json
+          cp artifacts/accident-diagram/webapp-README.md    dist/crash-diagram-webapp/README.md
+
+      - name: Create zip archive
+        run: cd dist && zip -r crash-diagram-webapp.zip crash-diagram-webapp/
+
+      - name: Upload webapp package
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-diagram-webapp
+          path: dist/crash-diagram-webapp.zip
+          if-no-files-found: error
+          retention-days: 30
