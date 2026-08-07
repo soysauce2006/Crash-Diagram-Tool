@@ -62,6 +62,59 @@ app.get('/api/overpass', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// OSM tile proxy — avoids rate-limiting when the browser hits OSM directly
+// ---------------------------------------------------------------------------
+app.get('/api/tiles/:z/:x/:y', async (req, res) => {
+  const { z, x } = req.params;
+  const y = req.params.y.replace(/\.png$/i, '');
+  if (!/^\d+$/.test(z) || !/^\d+$/.test(x) || !/^\d+$/.test(y)) {
+    return res.status(400).send('Invalid tile coordinates');
+  }
+  try {
+    const upstream = await fetch(`https://tile.openstreetmap.org/${z}/${x}/${y}.png`, {
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        'User-Agent': 'CrashSceneDiagramTool/1.0 (accident reconstruction)',
+        'Referer':    'https://www.openstreetmap.org/',
+        'Accept':     'image/png,image/*',
+      },
+    });
+    if (!upstream.ok) return res.status(upstream.status).send(`Upstream: ${upstream.status}`);
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.set('Content-Type', 'image/png').set('Cache-Control', 'public, max-age=86400').send(buf);
+  } catch (err) {
+    res.status(502).send(`Tile fetch failed: ${String(err)}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Nominatim geocoding proxy — avoids CORS and OSM rate-limiting
+// ---------------------------------------------------------------------------
+app.get('/api/nominatim', async (req, res) => {
+  const q = req.query.q;
+  if (!q) return res.status(400).json({ error: "Missing 'q' parameter" });
+  try {
+    const upstream = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
+      {
+        signal: AbortSignal.timeout(10_000),
+        headers: {
+          'User-Agent':      'CrashSceneDiagramTool/1.0 (accident reconstruction)',
+          'Accept-Language': 'en-US,en',
+          'Accept':          'application/json',
+          'Referer':         'https://www.openstreetmap.org/',
+        },
+      }
+    );
+    if (!upstream.ok) return res.status(upstream.status).json({ error: `Upstream: ${upstream.status}` });
+    const data = await upstream.json();
+    res.set('Cache-Control', 'public, max-age=3600').json(data);
+  } catch (err) {
+    res.status(502).json({ error: `Nominatim fetch failed: ${String(err)}` });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Static frontend + SPA fallback
 // ---------------------------------------------------------------------------
 app.use(express.static(PUBLIC));
