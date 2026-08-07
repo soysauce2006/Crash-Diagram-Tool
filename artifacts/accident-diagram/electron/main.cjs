@@ -1,8 +1,26 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, net } = require('electron');
 const path = require('path');
 const https = require('https');
+
+// ---------------------------------------------------------------------------
+// Register the tile:// custom scheme BEFORE app.whenReady().
+// This lets the renderer use fetch('tile://z/x/y.png') without any CORS or
+// Referer restrictions — all network I/O happens in Node.js, not Chromium.
+// ---------------------------------------------------------------------------
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'tile',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      bypassCSP: true,
+    },
+  },
+]);
 
 // ---------------------------------------------------------------------------
 // Overpass API — race multiple mirrors, return first successful response.
@@ -85,23 +103,62 @@ ipcMain.handle('overpass', async (_event, query) => {
   return fetchOverpass(query);
 });
 
+// Geocode an address via Nominatim entirely in Node.js — no CORS / Referer issues.
+ipcMain.handle('nominatim-search', async (_event, address) => {
+  return new Promise((resolve, reject) => {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
+    const req = https.get(
+      url,
+      {
+        headers: {
+          'User-Agent': 'CrashSceneDiagramTool/1.0 (accident reconstruction)',
+          'Referer': 'https://www.openstreetmap.org/',
+          'Accept': 'application/json',
+          'Accept-Language': 'en-US,en',
+        },
+        timeout: 15_000,
+      },
+      (res) => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`HTTP ${res.statusCode}`));
+          res.resume();
+          return;
+        }
+        let body = '';
+        res.on('data', (c) => (body += c));
+        res.on('end', () => {
+          try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
+        });
+        res.on('error', reject);
+      },
+    );
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Nominatim timeout')); });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
 app.whenReady().then(() => {
-  // Patch headers for OSM tile/Nominatim requests so tile.openstreetmap.org
-  // doesn't reject them with 403 (it blocks file:// referers).
-  const OSM_FILTER = {
-    urls: [
-      'https://tile.openstreetmap.org/*',
-      'https://nominatim.openstreetmap.org/*',
-    ],
-  };
-  session.defaultSession.webRequest.onBeforeSendHeaders(OSM_FILTER, (details, callback) => {
-    const headers = { ...details.requestHeaders };
-    headers['Referer'] = 'https://www.openstreetmap.org/';
-    headers['User-Agent'] = 'CrashSceneDiagramTool/1.0 (accident reconstruction; contact: support@example.com)';
-    callback({ requestHeaders: headers });
+  // Proxy tile:// URLs to tile.openstreetmap.org via Electron's net module.
+  // The renderer uses tile://z/x/y.png instead of https://tile.openstreetmap.org/z/x/y.png
+  // so all tile requests go through Node.js where we control every header.
+  protocol.handle('tile', async (request) => {
+    const tilePath = request.url.slice('tile://'.length); // e.g. "17/34567/89012.png"
+    const osmUrl = `https://tile.openstreetmap.org/${tilePath}`;
+    try {
+      const resp = await net.fetch(osmUrl, {
+        headers: {
+          'User-Agent': 'CrashSceneDiagramTool/1.0 (accident reconstruction)',
+          'Referer': 'https://www.openstreetmap.org/',
+          'Accept': 'image/png,image/*',
+        },
+      });
+      return resp;
+    } catch {
+      return new Response(null, { status: 503 });
+    }
   });
 
   createWindow();

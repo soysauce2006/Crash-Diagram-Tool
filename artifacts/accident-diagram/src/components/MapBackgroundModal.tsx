@@ -5,6 +5,21 @@ import 'leaflet/dist/leaflet.css';
 
 const TILE_SIZE = 256;
 
+// In the Electron desktop app, use the tile:// custom protocol so all tile
+// fetches go through the main process (Node.js) where there are no CORS or
+// Referer restrictions. In the browser, use the normal OSM HTTPS URL.
+const isElectron = typeof window !== 'undefined' && 'electronAPI' in window;
+function tileUrl(z: number, x: number, y: number): string {
+  return isElectron
+    ? `tile://${z}/${x}/${y}.png`
+    : `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+}
+function leafletTileUrl(): string {
+  return isElectron
+    ? 'tile://{z}/{x}/{y}.png'
+    : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+}
+
 function lon2tileFrac(lon: number, zoom: number): number {
   return (lon + 180) / 360 * Math.pow(2, zoom);
 }
@@ -51,9 +66,9 @@ async function stitchMapTiles(
       const px = offsetX + (tx - startTileX) * TILE_SIZE;
       const py = offsetY + (ty - startTileY) * TILE_SIZE;
       const wrappedTx = ((tx % maxTiles) + maxTiles) % maxTiles;
-      const tileUrl = `https://tile.openstreetmap.org/${zoom}/${wrappedTx}/${ty}.png`;
+      const url = tileUrl(zoom, wrappedTx, ty);
 
-      const promise = fetch(tileUrl)
+      const promise = fetch(url)
         .then(r => r.blob())
         .then(blob => {
           const objUrl = URL.createObjectURL(blob);
@@ -102,7 +117,7 @@ export function MapBackgroundModal({ onClose, onApply, canvasWidth, canvasHeight
       zoom: 4,
       zoomControl: true,
     });
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer(leafletTileUrl(), {
       attribution: '© OpenStreetMap contributors',
       maxZoom: 19,
     }).addTo(map);
@@ -126,11 +141,18 @@ export function MapBackgroundModal({ onClose, onApply, canvasWidth, canvasHeight
     setGeocoding(true);
     setError('');
     try {
-      const resp = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
-        { headers: { 'Accept-Language': 'en-US,en' } }
-      );
-      const data = await resp.json();
+      // In Electron, geocode via IPC so the request goes through Node.js
+      // (no CORS / Referer restrictions). In the browser, fetch directly.
+      let data: Array<{ lat: string; lon: string; display_name: string }>;
+      if (isElectron && (window as any).electronAPI?.nominatimSearch) {
+        data = await (window as any).electronAPI.nominatimSearch(address);
+      } else {
+        const resp = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+          { headers: { 'Accept-Language': 'en-US,en' } }
+        );
+        data = await resp.json();
+      }
       if (!data.length) { setError('Address not found. Try a more specific address.'); return; }
       const { lat, lon, display_name } = data[0];
       setLocation({ lat: parseFloat(lat), lon: parseFloat(lon), name: display_name });

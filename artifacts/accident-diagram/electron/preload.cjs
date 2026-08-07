@@ -6,4 +6,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   /** Call the Overpass API through the main process (bypasses CORS). */
   overpass: (query) => ipcRenderer.invoke('overpass', query),
+
+  /** Geocode an address via Nominatim through the main process (bypasses CORS/Referer). */
+  nominatimSearch: (address) => ipcRenderer.invoke('nominatim-search', address),
 });
