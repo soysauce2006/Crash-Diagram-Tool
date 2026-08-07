@@ -1,8 +1,9 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, net, dialog } = require('electron');
 const path = require('path');
 const https = require('https');
+const { autoUpdater } = require('electron-updater');
 
 // ---------------------------------------------------------------------------
 // Register the tile:// custom scheme BEFORE app.whenReady().
@@ -141,6 +142,41 @@ ipcMain.handle('nominatim-search', async (_event, address) => {
 // App lifecycle
 // ---------------------------------------------------------------------------
 app.whenReady().then(() => {
+  // ---------------------------------------------------------------------------
+  // Auto-updater — checks GitHub Releases for a newer version on every launch.
+  // Silent in the background; only prompts when an update has been downloaded.
+  // ---------------------------------------------------------------------------
+  const isDev = process.env.ELECTRON_DEV === '1';
+  if (!isDev) {
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on('update-available', () => {
+      // Update found — downloading silently in the background (no prompt needed).
+    });
+
+    autoUpdater.on('update-downloaded', () => {
+      dialog.showMessageBox({
+        type: 'info',
+        title: 'Update Ready',
+        message: 'A new version has been downloaded.',
+        detail: 'The update will be installed automatically when you close the app. You can also restart now to apply it immediately.',
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0,
+      }).then(({ response }) => {
+        if (response === 0) autoUpdater.quitAndInstall();
+      });
+    });
+
+    autoUpdater.on('error', (err) => {
+      // Log silently — don't bother the user if update check fails (e.g. offline).
+      console.error('[auto-updater] error:', err?.message);
+    });
+
+    // Delay the first check slightly so the main window has time to appear.
+    setTimeout(() => autoUpdater.checkForUpdates(), 3000);
+  }
+
   // Proxy tile:// URLs to tile.openstreetmap.org via Electron's net module.
   // The renderer uses tile://z/x/y.png instead of https://tile.openstreetmap.org/z/x/y.png
   // so all tile requests go through Node.js where we control every header.
