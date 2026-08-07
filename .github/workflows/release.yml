@@ -80,16 +80,9 @@ jobs:
         with:
           name: electron-vite-build
           path: artifacts/accident-diagram/dist/electron-app/
-      - name: Derive version from tag
-        shell: bash
-        env:
-          TAG_NAME: ${{ github.ref_name }}
-        run: |
-          echo "APP_VERSION=${TAG_NAME#v}" >> $GITHUB_ENV
       - name: Package Electron app for Windows
         working-directory: artifacts/accident-diagram
-        shell: bash
-        run: pnpm run electron:build -- --config.extraMetadata.version="$APP_VERSION"
+        run: pnpm run electron:build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
